@@ -1,0 +1,64 @@
+name: Public Safety Audit
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 20 * * 0"
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Block sensitive file types
+        shell: bash
+        run: |
+          set -euo pipefail
+          forbidden="$(find . -type f \(             -iname '*.xlsx' -o -iname '*.xls' -o             -iname '*.docx' -o -iname '*.doc' -o             -iname '*.csv' -o -iname '*.tsv' -o             -iname '*.pdf' -o -iname '*.zip' -o             -iname '*.7z' -o -iname '*.env' -o             -iname '*.pem' -o -iname '*.p12' -o             -iname '*.key' -o -iname '*.log'           \) -not -path './.git/*' -print)"
+          if [ -n "$forbidden" ]; then
+            echo "Sensitive or unnecessary public files detected:"
+            echo "$forbidden"
+            exit 1
+          fi
+
+      - name: Scan first-party source for secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          files=(index.html app.js sw.js manifest.webmanifest)
+          pattern='AIza[0-9A-Za-z_-]{20,}|gh[pousr]_[0-9A-Za-z]{20,}|github_pat_[0-9A-Za-z_]{20,}|(api[_-]?key|secret|token|password|passwd|authorization)[[:space:]]*[:=][[:space:]]*["'\'''][^"'\'']+'
+          if grep -Eni "$pattern" "${files[@]}"; then
+            echo "Possible secret detected in public first-party source."
+            exit 1
+          fi
+
+      - name: Block unexpected external URLs in first-party source
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -Eni 'https?://|wss?://' index.html app.js sw.js manifest.webmanifest; then
+            echo "Unexpected external network URL detected in first-party source."
+            exit 1
+          fi
+
+      - name: Confirm privacy-critical files
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f index.html
+          test -f app.js
+          test -f jszip.min.js
+          test -f manifest.webmanifest
+          test -f sw.js
+          test -f icon-180.png
+          test -f icon-192.png
+          test -f icon-512.png
+          echo "Public SSR safety audit passed."
