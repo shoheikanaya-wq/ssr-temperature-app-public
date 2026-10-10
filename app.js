@@ -50,7 +50,38 @@ async function build(){
  }catch(e){result.textContent="エラー: "+e.message}
 }
 document.getElementById("generate").addEventListener("click",build);
-if("serviceWorker"in navigator)navigator.serviceWorker.register("./sw.js");
+if("serviceWorker" in navigator){
+  let refreshing=false;
+  const updateBox=document.getElementById("updateBox");
+  const updateBtn=document.getElementById("updateApp");
+  const showUpdate=reg=>{
+    if(!reg.waiting)return;
+    if(updateBox)updateBox.hidden=false;
+    if(updateBtn)updateBtn.onclick=()=>{
+      updateBtn.disabled=true;
+      reg.waiting.postMessage({type:"SKIP_WAITING"});
+    };
+  };
+  navigator.serviceWorker.addEventListener("controllerchange",()=>{
+    if(refreshing)return;
+    refreshing=true;
+    location.reload();
+  });
+  navigator.serviceWorker.register("./sw.js").then(reg=>{
+    showUpdate(reg);
+    reg.addEventListener("updatefound",()=>{
+      const worker=reg.installing;
+      if(!worker)return;
+      worker.addEventListener("statechange",()=>{
+        if(worker.state==="installed" && navigator.serviceWorker.controller)showUpdate(reg);
+      });
+    });
+    window.addEventListener("focus",()=>reg.update());
+    document.addEventListener("visibilitychange",()=>{
+      if(document.visibilityState==="visible")reg.update();
+    });
+  }).catch(()=>{});
+}
 
 let ssrInstallPrompt=null;
 const installBtn=document.getElementById("installApp");
