@@ -1,0 +1,10 @@
+{
+  "name":"SSR温測",
+  "short_name":"SSR温測",
+  "start_url":"./",
+  "scope":"./",
+  "display":"standalone",
+  "background_color":"#ffffff",
+  "theme_color":"#165578",
+  "description":"SSR温測 v3.23"
+}
