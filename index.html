@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#ffffff">
+<link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="icon-180.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="SSR温測">
+<title>SSR温測</title>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<style>
+  :root{
+    --btn-bg:#f5f7fa;
+    --btn-border:#a9b2bd;
+    --btn-shadow:#7f8994;
+    --btn-active:#e6ebf1;
+    --btn-focus:#2563eb;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#fff;color:#111;font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+  main{max-width:760px;margin:0 auto;padding:18px}
+  textarea{width:100%;box-sizing:border-box;font-size:16px}
+  .pressable{
+    appearance:none;
+    -webkit-appearance:none;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    min-height:48px;
+    padding:12px 24px;
+    border:1px solid var(--btn-border);
+    border-radius:12px;
+    background:linear-gradient(#fff,var(--btn-bg));
+    box-shadow:0 5px 0 var(--btn-shadow),0 7px 14px rgba(0,0,0,.14);
+    font-size:18px;
+    font-weight:700;
+    cursor:pointer;
+    transition:transform .08s ease,box-shadow .08s ease,background .12s ease;
+    touch-action:manipulation;
+    user-select:none;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .pressable:hover{filter:brightness(.99)}
+  .pressable:active,
+  .pressable.is-pressed,
+  .pressable[aria-pressed="true"]{
+    transform:translateY(4px) scale(.995);
+    box-shadow:0 1px 0 var(--btn-shadow),0 2px 5px rgba(0,0,0,.16);
+    background:var(--btn-active);
+  }
+  .pressable:focus-visible{outline:3px solid var(--btn-focus);outline-offset:3px}
+  .pressable:disabled{opacity:.55;cursor:not-allowed;transform:none;box-shadow:0 2px 0 #aeb5bd}
+  .file-label{
+    display:inline-flex;
+    flex-direction:column;
+    gap:8px;
+    padding:12px 14px;
+    border:1px solid #c7cdd4;
+    border-radius:12px;
+    background:#fafafa;
+  }
+  @media (prefers-reduced-motion:reduce){.pressable{transition:none}}
+</style>
+</head>
+<body>
+<main>
+<h1>SSR温測 <small>v3.23</small></h1>
+<p>Word測定データを貼り付け、基準Excel v3.22へ反映して出力します。</p><p style="margin:8px 0 14px;padding:10px 12px;border-radius:10px;background:#eef7f1;color:#245c35;font-weight:700">🔒 端末内処理：入力した測定データは外部サーバーへ送信しません。</p>
+<textarea id="input" rows="16" placeholder="Wordの測定データをここへ貼り付け"></textarea>
+<p><label class="file-label">① 基準Excel v3.22を選択<br><input id="template" type="file" accept=".xlsx"></label></p>
+<p><button id="generate" class="pressable" type="button">② Excelを生成</button></p>
+<section id="installBox" style="margin-top:18px;padding:14px;border:1px solid #d4d9df;border-radius:12px;background:#f8fafc">
+  <strong>📱 ホーム画面にSSR温測を追加</strong>
+  <p id="installGuide" style="margin:8px 0;line-height:1.6">Android：Chromeの「アプリをインストール」／iPhone・iPad：Safariの共有 →「ホーム画面に追加」</p>
+  <button id="installApp" class="pressable" type="button" hidden>アプリをインストール</button>
+</section>
+<pre id="result" style="white-space:pre-wrap"></pre>
+</main>
+<script src="app.js"></script>
+<script>
+let ssrInstallPrompt=null;
+const installBtn=document.getElementById('installApp');
+const installGuide=document.getElementById('installGuide');
+window.addEventListener('beforeinstallprompt',e=>{
+  e.preventDefault();
+  ssrInstallPrompt=e;
+  installBtn.hidden=false;
+  installGuide.textContent='Android：下の「アプリをインストール」を押してください。';
+});
+installBtn.addEventListener('click',async()=>{
+  if(!ssrInstallPrompt)return;
+  await ssrInstallPrompt.prompt();
+  ssrInstallPrompt=null;
+  installBtn.hidden=true;
+});
+window.addEventListener('appinstalled',()=>{
+  installBtn.hidden=true;
+  installGuide.textContent='インストール済みです。ホーム画面の「SSR温測」アイコンから起動できます。';
+});
+const isiOS=/iphone|ipad|ipod/i.test(navigator.userAgent);
+const standalone=window.matchMedia?.('(display-mode: standalone)').matches||navigator.standalone===true;
+if(isiOS&&!standalone){
+  installGuide.textContent='iPhone・iPad：Safariで開き、共有ボタン →「ホーム画面に追加」→ 追加。専用アイコンから起動できます。';
+}
+</script>
+</body>
+</html>
