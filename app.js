@@ -51,3 +51,28 @@ async function build(){
 }
 document.getElementById("generate").addEventListener("click",build);
 if("serviceWorker"in navigator)navigator.serviceWorker.register("./sw.js");
+
+let ssrInstallPrompt=null;
+const installBtn=document.getElementById("installApp");
+const installGuide=document.getElementById("installGuide");
+window.addEventListener("beforeinstallprompt",e=>{
+  e.preventDefault();
+  ssrInstallPrompt=e;
+  if(installBtn) installBtn.hidden=false;
+  if(installGuide) installGuide.textContent="Android：下の「アプリをインストール」を押してください。";
+});
+if(installBtn) installBtn.addEventListener("click",async()=>{
+  if(!ssrInstallPrompt)return;
+  await ssrInstallPrompt.prompt();
+  ssrInstallPrompt=null;
+  installBtn.hidden=true;
+});
+window.addEventListener("appinstalled",()=>{
+  if(installBtn) installBtn.hidden=true;
+  if(installGuide) installGuide.textContent="インストール済みです。ホーム画面の「SSR温測」アイコンから起動できます。";
+});
+const isiOS=/iphone|ipad|ipod/i.test(navigator.userAgent);
+const standalone=(window.matchMedia&&window.matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true;
+if(isiOS&&!standalone&&installGuide){
+  installGuide.textContent="iPhone・iPad：Safariで開き、共有ボタン →「ホーム画面に追加」→ 追加。専用アイコンから起動できます。";
+}
