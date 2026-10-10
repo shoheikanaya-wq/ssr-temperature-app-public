@@ -4,9 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#ffffff">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="icon-180.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="SSR温測">
 <title>SSR温測</title>
-<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="jszip.min.js"></script>
 <style>
   :root{
     --btn-bg:#f5f7fa;
@@ -76,31 +77,5 @@
 <pre id="result" style="white-space:pre-wrap"></pre>
 </main>
 <script src="app.js"></script>
-<script>
-let ssrInstallPrompt=null;
-const installBtn=document.getElementById('installApp');
-const installGuide=document.getElementById('installGuide');
-window.addEventListener('beforeinstallprompt',e=>{
-  e.preventDefault();
-  ssrInstallPrompt=e;
-  installBtn.hidden=false;
-  installGuide.textContent='Android：下の「アプリをインストール」を押してください。';
-});
-installBtn.addEventListener('click',async()=>{
-  if(!ssrInstallPrompt)return;
-  await ssrInstallPrompt.prompt();
-  ssrInstallPrompt=null;
-  installBtn.hidden=true;
-});
-window.addEventListener('appinstalled',()=>{
-  installBtn.hidden=true;
-  installGuide.textContent='インストール済みです。ホーム画面の「SSR温測」アイコンから起動できます。';
-});
-const isiOS=/iphone|ipad|ipod/i.test(navigator.userAgent);
-const standalone=window.matchMedia?.('(display-mode: standalone)').matches||navigator.standalone===true;
-if(isiOS&&!standalone){
-  installGuide.textContent='iPhone・iPad：Safariで開き、共有ボタン →「ホーム画面に追加」→ 追加。専用アイコンから起動できます。';
-}
-</script>
 </body>
 </html>
