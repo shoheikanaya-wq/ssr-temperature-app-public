@@ -1,5 +1,5 @@
-const VERSION="3.34";
-const input=document.getElementById("input"),template=document.getElementById("template"),result=document.getElementById("result");
+const VERSION="1.10";
+const input=document.getElementById("input"),result=document.getElementById("result");
 const wordFile=document.getElementById("wordFile");
 
 async function readDocx(file){
@@ -122,9 +122,10 @@ async function build(){
  try{
   const text=input.value.replace(/\r/g,"").trim();
   if(!text)throw new Error("Word測定データを貼り付けてください。");
-  if(!template.files.length)throw new Error("基準Excel v3.22を選択してください。");
   result.textContent="生成中…";
-  const zip=await JSZip.loadAsync(await template.files[0].arrayBuffer());
+  const templateResponse=await fetch("./SSR温測テンプレ.xlsx",{cache:"no-store"});
+  if(!templateResponse.ok)throw new Error("標準ひな形を読み込めませんでした。");
+  const zip=await JSZip.loadAsync(await templateResponse.arrayBuffer());
   const parser=new DOMParser(),ser=new XMLSerializer();
   const wbxml=await zip.file("xl/workbook.xml").async("string");
   const wbdoc=parser.parseFromString(wbxml,"application/xml");
@@ -161,7 +162,7 @@ async function build(){
   calc.setAttribute("fullCalcOnLoad","1");calc.setAttribute("forceFullCalc","1");calc.setAttribute("calcMode","auto");
   zip.file("xl/workbook.xml",ser.serializeToString(wbdoc));
   const out=await zip.generateAsync({type:"blob",mimeType:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
-  const a=document.createElement("a");a.href=URL.createObjectURL(out);a.download="SSR温測_v3.34_生成.xlsx";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),3000);
+  const a=document.createElement("a");a.href=URL.createObjectURL(out);a.download="SSR温測_生成.xlsx";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),3000);
   result.textContent="生成完了。\n入力 "+lines.length+" 行を「スマホ入力」へ反映しました。\nExcelを開いて横・縦データを確認してください。";
  }catch(e){result.textContent="エラー: "+e.message}
 }
@@ -226,249 +227,119 @@ if(standalone){
 const missingBox=document.getElementById("missingBox");
 const missingList=document.getElementById("missingList");
 
-function expectedRows(machine){
-  return [
-    {label:"盤内温度",count:2,type:"panel"},
-    ...(MACHINE_LAYOUT[machine]||[]).map((count,i)=>({label:"SSR "+(i+1)+"段目",count,type:"ssr"}))
-  ];
-}
-
-function sourceBlock(machine){
+function machineBlockRange(machine){
   const lines=input.value.replace(/\r/g,"").split("\n");
-  let machineLine=-1,end=lines.length;
+  let start=-1;
+  let end=lines.length;
+
   for(let i=0;i<lines.length;i++){
     const hit=lines[i].match(MACHINE_RE);
-    if(hit&&hit[1].toUpperCase()===machine){machineLine=i;break;}
-  }
-  if(machineLine<0)return null;
-  for(let i=machineLine+1;i<lines.length;i++){
-    if(lines[i].match(MACHINE_RE)){end=i;break;}
-  }
-  const rows=[];
-  const sameLine=lines[machineLine].replace(MACHINE_RE,"").trim();
-  if(sameLine)rows.push({lineIndex:machineLine,text:sameLine,onMachineLine:true});
-  for(let i=machineLine+1;i<end;i++){
-    if(lines[i].trim())rows.push({lineIndex:i,text:lines[i],onMachineLine:false});
-  }
-  return {lines,machineLine,end,rows};
-}
-
-function splitRowValues(line){
-  return parseMeasurementValues(line).values;
-}
-
-function parsePanelTemperatures(line){
-  const parsed=parseMeasurementValues(line);
-  const values=parsed.values;
-  const valid=!parsed.invalid &&
-    values.length===2 &&
-    values.every(v=>/^\d{2}\.\d$/.test(v));
-  return {valid,values};
-}
-
-function analyzeRow(line,spec){
-  if(spec.type==="panel"){
-    const panel=parsePanelTemperatures(line);
-    if(panel.valid)return {parts:splitRowValues(line),issues:[],logicalCount:2};
-
-    const parts=splitRowValues(line);
-    return {
-      parts,
-      logicalCount:panel.values.length,
-      issues:[{
-        kind:"replace-line",
-        index:0,
-        label:"要修正",
-        current:line.trim(),
-        placeholder:"例：32.0 28.9"
-      }]
-    };
-  }
-
-  const expectedCount=spec.count;
-  const parsed=parseMeasurementValues(line);
-  const parts=parsed.values;
-  const malformed=[];
-  parts.forEach((p,i)=>{
-    if(!/^-?\d{1,3}(?:\.\d)?$/.test(p))malformed.push(i);
-  });
-  if(parsed.invalid && !malformed.length && parts.length){
-    malformed.push(parts.length-1);
-  }
-
-  const issues=[];
-
-  if(parts.length<expectedCount && !parsed.invalid && malformed.length===0){
-    issues.push({
-      kind:"replace-line",
-      index:0,
-      label:"要修正",
-      current:line.trim(),
-      placeholder:"この行をそのまま修正"
-    });
-    return {parts,issues,logicalCount:parts.length};
-  }
-
-  for(const i of malformed){
-    issues.push({
-      kind:"replace",
-      index:i,
-      label:"ここがおかしい？",
-      current:parts[i]||"",
-      placeholder:"この部分だけ修正"
-    });
-  }
-
-  return {parts,issues,logicalCount:parts.length};
-}
-
-function renderHighlightedLine(line,spec){
-  const {parts,issues}=analyzeRow(line,spec);
-  const badIndexes=new Map();
-  issues.forEach(issue=>badIndexes.set(issue.index,issue.label));
-
-  const preview=document.createElement("div");
-  preview.className="raw-line-preview";
-
-  const wholeLineIssue=issues.some(issue=>issue.kind==="replace-line");
-  if(wholeLineIssue){
-    const span=document.createElement("span");
-    span.className="bad-part";
-    span.textContent=line.trim()||"（この行が空です）";
-    preview.appendChild(span);
-    return preview;
-  }
-
-  if(!parts.length){
-    const s=document.createElement("span");
-    s.className="bad-part";
-    s.textContent="（この行が空です）";
-    preview.appendChild(s);
-    return preview;
-  }
-
-  parts.forEach((p,i)=>{
-    if(i)preview.append(" ");
-    const span=document.createElement("span");
-    span.textContent=p;
-    if(badIndexes.has(i)){
-      span.className="bad-part";
-      span.title=badIndexes.get(i);
+    if(hit&&hit[1].toUpperCase()===machine){
+      start=i;
+      break;
     }
-    preview.appendChild(span);
-  });
+  }
+  if(start<0)return null;
 
-  return preview;
+  for(let i=start+1;i<lines.length;i++){
+    if(lines[i].match(MACHINE_RE)){
+      end=i;
+      break;
+    }
+  }
+  return {lines,start,end};
 }
 
-function replaceIssueInSource(machine,rowIndex,issueIndex,newText,replaceWholeLine=false){
-  const src=sourceBlock(machine);
-  if(!src)return false;
-  const row=src.rows[rowIndex];
-  if(!row)return false;
+function analyzeMachineBlock(machine){
+  const range=machineBlockRange(machine);
+  if(!range)return null;
 
-  const parts=splitRowValues(row.text);
-  const replacement=newText.trim().split(/\s+/).filter(Boolean);
+  const rawLines=range.lines.slice(range.start,range.end);
+  const dataLines=[...rawLines];
+  if(dataLines.length){
+    dataLines[0]=dataLines[0].replace(MACHINE_RE," ").trim();
+  }
 
-  let rebuilt;
-  if(replaceWholeLine){
-    rebuilt=newText.trim();
-  }else{
-    if(issueIndex<parts.length){
-      parts.splice(issueIndex,1,...replacement);
-    }else{
-      parts.push(...replacement);
-    }
-    rebuilt=parts.join(" ");
+  let count=0;
+  let invalid=false;
+  for(const line of dataLines){
+    const parsed=parseMeasurementValues(line);
+    count+=parsed.values.length;
+    if(parsed.invalid)invalid=true;
   }
-  if(row.onMachineLine){
-    const name=(src.lines[src.machineLine].match(MACHINE_RE)||[machine])[0];
-    src.lines[src.machineLine]=name+(rebuilt?" "+rebuilt:"");
-  }else{
-    src.lines[row.lineIndex]=rebuilt;
-  }
-  input.value=src.lines.join("\n");
+
+  const expected=EXPECTED_COUNTS[machine]||0;
+  return {
+    machine,
+    range,
+    raw:rawLines.join("\n"),
+    count,
+    expected,
+    invalid,
+    issue:invalid || (count>0 && expected>0 && count!==expected)
+  };
+}
+
+function replaceMachineBlock(machine,newText){
+  const range=machineBlockRange(machine);
+  if(!range)return false;
+
+  const replacement=newText.replace(/\r/g,"").split("\n");
+  range.lines.splice(range.start,range.end-range.start,...replacement);
+  input.value=range.lines.join("\n");
   return true;
 }
 
 function renderMissingData(){
-  if(!missingBox||!missingList)return;
+  if(!missingBox||!missingList)return 0;
   missingList.replaceChildren();
+
   let total=0;
+  const seen=new Set();
 
   for(const block of parseMachineBlocks(input.value)){
     const machine=block.machine;
-    if(!MACHINE_LAYOUT[machine])continue;
-    const src=sourceBlock(machine);
-    if(!src)continue;
-    const specs=expectedRows(machine);
+    if(seen.has(machine))continue;
+    seen.add(machine);
 
-    const rowsToShow=[];
-    for(let i=0;i<specs.length;i++){
-      const row=src.rows[i]||{text:"",lineIndex:null,onMachineLine:false};
-      const analysis=analyzeRow(row.text,specs[i]);
-      if(analysis.issues.length){
-        rowsToShow.push({index:i,row,spec:specs[i],analysis});
-      }
-    }
-    if(!rowsToShow.length)continue;
+    const analysis=analyzeMachineBlock(machine);
+    if(!analysis || !analysis.issue)continue;
+    total++;
 
     const card=document.createElement("div");
-    card.className="missing-card";
+    card.className="stable-correction-card";
 
     const title=document.createElement("div");
-    title.className="missing-title";
-    title.textContent=machine+"　修正箇所";
+    title.className="stable-correction-title";
+    title.textContent=machine+"　要修正";
     card.appendChild(title);
 
-    for(const item of rowsToShow){
-      total++;
-      const wrap=document.createElement("div");
-      wrap.className="raw-row-editor";
+    const note=document.createElement("div");
+    note.className="stable-correction-note";
+    note.textContent="Word読取元データをそのまま修正してください。";
+    card.appendChild(note);
 
-      const head=document.createElement("div");
-      head.className="raw-row-head";
-      head.textContent=item.spec.label+"　要修正";
-      wrap.appendChild(head);
+    const edit=document.createElement("textarea");
+    edit.className="stable-correction-input";
+    edit.rows=Math.max(4,analysis.raw.split("\n").length+1);
+    edit.value=analysis.raw;
+    edit.spellcheck=false;
+    card.appendChild(edit);
 
-      wrap.appendChild(renderHighlightedLine(item.row.text,item.spec));
-
-      for(const issue of item.analysis.issues){
-        const correction=document.createElement("div");
-        correction.className="issue-editor";
-
-        const label=document.createElement("div");
-        label.className="issue-label";
-        label.textContent=issue.label;
-        correction.appendChild(label);
-
-        const edit=document.createElement("input");
-        edit.type="text";
-        edit.className="issue-input";
-        edit.value=issue.current;
-        edit.placeholder=issue.placeholder;
-        edit.autocomplete="off";
-        edit.spellcheck=false;
-        correction.appendChild(edit);
-
-        const apply=document.createElement("button");
-        apply.type="button";
-        apply.className="pressable issue-apply";
-        apply.textContent="修正を反映";
-        apply.addEventListener("click",()=>{
-          if(replaceIssueInSource(machine,item.index,issue.index,edit.value,issue.kind==="replace-line")){
-            pendingGenerate=false;
-            renderMissingData();
-            result.textContent=machine+" "+item.spec.label+" の要修正箇所を反映しました。";
-          }
-        });
-        correction.appendChild(apply);
-        wrap.appendChild(correction);
+    const apply=document.createElement("button");
+    apply.type="button";
+    apply.className="pressable stable-correction-apply";
+    apply.textContent="修正を反映";
+    apply.addEventListener("click",()=>{
+      if(replaceMachineBlock(machine,edit.value)){
+        pendingGenerate=false;
+        const remaining=renderMissingData();
+        result.textContent=remaining
+          ? machine+" を反映しました。残りの要修正データを確認してください。"
+          : "修正完了。Excelを保存できます。";
       }
-
-      card.appendChild(wrap);
-    }
-
+    });
+    card.appendChild(apply);
     missingList.appendChild(card);
   }
 

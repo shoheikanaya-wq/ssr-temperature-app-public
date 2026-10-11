@@ -118,3 +118,9 @@
 .install-qr-copy{margin:0;line-height:1.55;color:#334155}
 @media (max-width:520px){.install-qr-wrap{flex-direction:column;text-align:center}.install-qr{width:180px;height:180px;max-width:70vw}}
 .app-mode .install-box{display:none}
+
+.stable-correction-card{margin:10px 0;padding:12px;border:1px solid #e2a3a3;border-radius:12px;background:#fff8f8}
+.stable-correction-title{font-weight:900;color:#b42318}
+.stable-correction-note{margin:5px 0 8px;font-size:14px;color:#5b6470}
+.stable-correction-input{width:100%;min-height:110px;padding:10px 12px;border:2px solid #d14343;border-radius:10px;background:#fff;font-size:16px;line-height:1.55;font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
+.stable-correction-apply{width:100%;margin-top:8px}
