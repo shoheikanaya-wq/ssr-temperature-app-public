@@ -40,21 +40,27 @@ if(wordFile){
 
 const esc=s=>s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 function colA(row){return "A"+row}
-const EXPECTED_COUNTS={
-  "FM81":22,
-  "FM83-1":37,
-  "FM83-2":14,
-  "FM84":30,
-  "FM96":20,
-  "FM97":20,
-  "FM19":32,
-  "FM22":32,
-  "FM01":22,
-  "FM07":34,
-  "FE01":20,
-  "FE04":24,
-  "MM18":4
+const MACHINE_LAYOUT={
+  "MM18":[2,14,14,14],
+  "FE01":[10,8],
+  "FE04":[10,12],
+  "FM81":[7,7,6],
+  "FM83-1":[18,17],
+  "FM83-2":[6,6],
+  "FM84":[6,14,8],
+  "FM96":[6,6,6],
+  "FM97":[7,7,4],
+  "FM19":[6,6,6,6,6],
+  "FM22":[12,9,9],
+  "FM01":[7,7,6],
+  "FM07":[12,12,8]
 };
+const EXPECTED_COUNTS=Object.fromEntries(
+  Object.entries(MACHINE_LAYOUT).map(([machine,rows])=>[
+    machine,
+    2+rows.reduce((sum,n)=>sum+n,0)
+  ])
+);
 const MACHINE_RE=/(FM83-1|FM83-2|FM81|FM84|FM96|FM97|FM19|FM22|FM01|FM07|FE01|FE04|MM18)/i;
 
 function countNumbers(text){
