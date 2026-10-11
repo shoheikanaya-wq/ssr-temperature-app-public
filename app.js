@@ -1,4 +1,4 @@
-const VERSION="3.30";
+const VERSION="3.31";
 const input=document.getElementById("input"),template=document.getElementById("template"),result=document.getElementById("result");
 const wordFile=document.getElementById("wordFile");
 
@@ -63,9 +63,34 @@ const EXPECTED_COUNTS=Object.fromEntries(
 );
 const MACHINE_RE=/(FM83-1|FM83-2|FM81|FM84|FM96|FM97|FM19|FM22|FM01|FM07|FE01|FE04|MM18)/i;
 
+function parseMeasurementValues(line){
+  const chunks=line.trim().split(/\s+/).filter(Boolean);
+  const values=[];
+  let invalid=false;
+
+  for(const chunk of chunks){
+    if(/^-?\d{1,3}\.\d$/.test(chunk)){
+      values.push(chunk);
+      continue;
+    }
+
+    if(/^\d{2}\.\d(?:\d{2}\.\d)+$/.test(chunk)){
+      const joined=chunk.match(/\d{2}\.\d/g)||[];
+      values.push(...joined);
+      continue;
+    }
+
+    if(/\d/.test(chunk)){
+      values.push(chunk);
+      invalid=true;
+    }
+  }
+
+  return {values,invalid};
+}
+
 function countNumbers(text){
-  const m=text.match(/-?\d+(?:\.\d+)?/g);
-  return m?m.length:0;
+  return parseMeasurementValues(text).values.length;
 }
 
 function parseMachineBlocks(text){
@@ -158,7 +183,7 @@ async function build(){
   calc.setAttribute("fullCalcOnLoad","1");calc.setAttribute("forceFullCalc","1");calc.setAttribute("calcMode","auto");
   zip.file("xl/workbook.xml",ser.serializeToString(wbdoc));
   const out=await zip.generateAsync({type:"blob",mimeType:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
-  const a=document.createElement("a");a.href=URL.createObjectURL(out);a.download="SSR温測_v3.30_生成.xlsx";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),3000);
+  const a=document.createElement("a");a.href=URL.createObjectURL(out);a.download="SSR温測_v3.31_生成.xlsx";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),3000);
   result.textContent="生成完了。\n入力 "+lines.length+" 行を「スマホ入力」へ反映しました。\nExcelを開いて横・縦データを確認してください。";
  }catch(e){result.textContent="エラー: "+e.message}
 }
@@ -276,24 +301,16 @@ function sourceBlock(machine){
 }
 
 function splitRowValues(line){
-  return line.trim().split(/\s+/).filter(Boolean);
+  return parseMeasurementValues(line).values;
 }
 
 function parsePanelTemperatures(line){
-  const raw=line.trim();
-  if(!raw)return {valid:false,values:[]};
-
-  const spaced=raw.split(/\s+/).filter(Boolean);
-  if(spaced.length===2 && spaced.every(v=>/^\d{2}\.\d$/.test(v))){
-    return {valid:true,values:spaced};
-  }
-
-  if(spaced.length===1){
-    const m=spaced[0].match(/^(\d{2}\.\d)(\d{2}\.\d)$/);
-    if(m)return {valid:true,values:[m[1],m[2]]};
-  }
-
-  return {valid:false,values:spaced};
+  const parsed=parseMeasurementValues(line);
+  const values=parsed.values;
+  const valid=!parsed.invalid &&
+    values.length===2 &&
+    values.every(v=>/^\d{2}\.\d$/.test(v));
+  return {valid,values};
 }
 
 function analyzeRow(line,spec){
@@ -316,11 +333,15 @@ function analyzeRow(line,spec){
   }
 
   const expectedCount=spec.count;
-  const parts=splitRowValues(line);
+  const parsed=parseMeasurementValues(line);
+  const parts=parsed.values;
   const malformed=[];
   parts.forEach((p,i)=>{
     if(!/^-?\d{1,3}(?:\.\d)?$/.test(p))malformed.push(i);
   });
+  if(parsed.invalid && !malformed.length && parts.length){
+    malformed.push(parts.length-1);
+  }
 
   const issues=[];
   for(const i of malformed){
