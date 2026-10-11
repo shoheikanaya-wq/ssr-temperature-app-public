@@ -1,5 +1,43 @@
-const VERSION="3.23";
+const VERSION="3.24";
 const input=document.getElementById("input"),template=document.getElementById("template"),result=document.getElementById("result");
+const wordFile=document.getElementById("wordFile");
+
+async function readDocx(file){
+  const zip=await JSZip.loadAsync(await file.arrayBuffer());
+  const doc=zip.file("word/document.xml");
+  if(!doc)throw new Error("Word文書の本文を読み取れませんでした。");
+  const xml=await doc.async("string");
+  const parser=new DOMParser();
+  const dom=parser.parseFromString(xml,"application/xml");
+  if(dom.getElementsByTagName("parsererror").length)throw new Error("Word文書の解析に失敗しました。");
+  const paragraphs=[...dom.getElementsByTagNameNS("*","p")];
+  const lines=paragraphs.map(p=>{
+    let line="";
+    for(const node of [...p.getElementsByTagNameNS("*","t")]) line+=node.textContent||"";
+    return line.trimEnd();
+  });
+  return lines.join("\n").replace(/\n{3,}/g,"\n\n").trim();
+}
+
+if(wordFile){
+  wordFile.addEventListener("change",async()=>{
+    const file=wordFile.files?.[0];
+    if(!file)return;
+    try{
+      result.textContent="Wordを読み込み中…";
+      const text=await readDocx(file);
+      if(!text)throw new Error("Word文書に読み取れる文字がありません。");
+      input.value=text;
+      pendingGenerate=false;
+      refreshInputSuggestion();
+      result.textContent="Word読み込み完了："+file.name;
+    }catch(e){
+      wordFile.value="";
+      result.textContent="Word読込エラー: "+e.message;
+    }
+  });
+}
+
 const esc=s=>s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 function colA(row){return "A"+row}
 const EXPECTED_COUNTS={
@@ -112,7 +150,7 @@ async function build(){
   calc.setAttribute("fullCalcOnLoad","1");calc.setAttribute("forceFullCalc","1");calc.setAttribute("calcMode","auto");
   zip.file("xl/workbook.xml",ser.serializeToString(wbdoc));
   const out=await zip.generateAsync({type:"blob",mimeType:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
-  const a=document.createElement("a");a.href=URL.createObjectURL(out);a.download="SSR温測_v3.23_生成.xlsx";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),3000);
+  const a=document.createElement("a");a.href=URL.createObjectURL(out);a.download="SSR温測_v3.24_生成.xlsx";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),3000);
   result.textContent="生成完了。\n入力 "+lines.length+" 行を「スマホ入力」へ反映しました。\nExcelを開いて横・縦データを確認してください。";
  }catch(e){result.textContent="エラー: "+e.message}
 }

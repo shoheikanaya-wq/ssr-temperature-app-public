@@ -72,3 +72,6 @@
 
 .app-mode .intro-copy{display:none}
 .app-mode .privacy-note{margin:4px 0 10px;padding:4px 8px;font-size:12px;font-weight:600;background:transparent}
+
+.word-file-label{width:100%;max-width:420px}
+.word-file-label input{font-size:16px}
