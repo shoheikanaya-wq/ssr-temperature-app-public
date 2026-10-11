@@ -61,7 +61,25 @@ const EXPECTED_COUNTS=Object.fromEntries(
     2+rows.reduce((sum,n)=>sum+n,0)
   ])
 );
-const MACHINE_RE=/(FM83-1|FM83-2|FM81|FM84|FM96|FM97|FM19|FM22|FM01|FM07|FE01|FE04|MM18)/i;
+const MACHINE_RE=/(FM\s*83-1|FM\s*83-2|FM\s*81|FM\s*84|FM\s*96|FM\s*97|FM\s*19|FM\s*22|FM\s*01|FM\s*07|FE\s*01|FE\s*04|MM\s*18)/i;
+function normalizeMachineName(s){return String(s||"").toUpperCase().replace(/\s+/g,"")}
+
+const TEMPLATE_MAP={
+  "MM18":{panel:["D2","F2"],ssr:["B4","C4","B6","C6","D6","E6","F6","G6","H6","I6","J6","K6","L6","M6","N6","O6","B8","C8","D8","E8","F8","G8","H8","I8","J8","K8","L8","M8","N8","O8","B10","C10","D10","E10","F10","G10","H10","I10","J10","K10","L10","M10","N10","O10"]},
+  "FE01":{panel:["D12","F12"],ssr:["B14","C14","D14","E14","F14","G14","H14","I14","J14","K14","B16","C16","F16","G16","H16","I16","J16","K16"]},
+  "FE04":{panel:["D18","F18"],ssr:["B20","C20","D20","E20","F20","G20","H20","I20","J20","K20","B22","C22","D22","E22","F22","G22","H22","I22","J22","K22","L22","M22"]},
+  "FM81":{panel:["D24","F24"],ssr:["B26","C26","D26","E26","F26","G26","H26","B28","C28","D28","E28","F28","G28","H28","B30","C30","D30","E30","F30","G30"]},
+  "FM83-1":{panel:["D32","F32"],ssr:["B34","C34","D34","E34","F34","G34","H34","I34","J34","K34","L34","M34","N34","O34","P34","Q34","R34","S34","B36","C36","D36","E36","F36","G36","H36","I36","J36","K36","L36","M36","N36","O36","P36","Q36","R36"]},
+  "FM83-2":{panel:["D38","F38"],ssr:["B40","C40","D40","E40","F40","G40","B42","C42","D42","E42","F42","G42"]},
+  "FM84":{panel:["D45","F45"],ssr:["B47","C47","D47","E47","F47","G47","B49","C49","D49","E49","F49","G49","H49","I49","J49","K49","L49","M49","N49","O49","B51","C51","D51","E51","F51","G51","H51","I51"]},
+  "FM96":{panel:["D54","F54"],ssr:["B56","C56","D56","E56","F56","G56","B58","C58","D58","E58","F58","G58","B60","C60","D60","E60","F60","G60"]},
+  "FM97":{panel:["M54","O54"],ssr:["K56","L56","M56","N56","O56","P56","Q56","K58","L58","M58","N58","O58","P58","Q58","K60","L60","M60","N60"]},
+  "FM19":{panel:["D63","F63"],ssr:["B65","C65","D65","E65","F65","G65","B67","C67","D67","E67","F67","G67","B69","C69","D69","E69","F69","G69","B71","C71","D71","E71","F71","G71","B73","C73","D73","E73","F73","G73"]},
+  "FM22":{panel:["M63","O63"],ssr:["K65","L65","M65","N65","O65","P65","Q65","R65","S65","T65","U65","V65","K67","L67","M67","N67","O67","P67","Q67","R67","S67","K69","L69","M69","N69","O69","P69","Q69","R69","S69"]},
+  "FM01":{panel:["D76","F76"],ssr:["B78","C78","D78","E78","F78","G78","H78","B80","C80","D80","E80","F80","G80","H80","B82","C82","D82","E82","F82","G82"]},
+  "FM07":{panel:["M76","O76"],ssr:["K78","L78","M78","N78","O78","P78","Q78","R78","S78","T78","U78","V78","K80","L80","M80","N80","O80","P80","Q80","R80","S80","T80","U80","V80","O82","P82","Q82","R82","S82","T82","U82","V82"]}
+};
+const VERTICAL_COL={"MM18":"B","FE01":"C","FE04":"D","FM81":"E","FM83-1":"F","FM83-2":"G","FM84":"H","FM96":"I","FM97":"J","FM19":"K","FM22":"L","FM01":"M","FM07":"N"};
 
 function parseMeasurementValues(line){
   const chunks=line.trim().split(/\s+/).filter(Boolean);
@@ -100,7 +118,7 @@ function parseMachineBlocks(text){
     const hit=raw.match(MACHINE_RE);
     if(hit){
       if(current)blocks.push(current);
-      const machine=hit[1].toUpperCase();
+      const machine=normalizeMachineName(hit[1]);
       const after=raw.replace(hit[0]," ").trim();
       current={machine,lines:[],text:"",count:0};
       if(after){
@@ -118,56 +136,188 @@ function parseMachineBlocks(text){
   return blocks;
 }
 
+function parseDateFromText(text){
+  let m=text.match(/(20\d{2})\s*[年./-]\s*(\d{1,2})\s*[月./-]\s*(\d{1,2})\s*日?/);
+  if(!m)m=text.match(/(20\d{2})(\d{2})(\d{2})/);
+  if(!m)return null;
+  const y=Number(m[1]),mo=Number(m[2]),d=Number(m[3]);
+  return {y,mo,d,full:y+"年"+mo+"月"+d+"日",short:mo+"月"+d+"日",file:String(y)+String(mo).padStart(2,"0")+String(d).padStart(2,"0")};
+}
+
+function parseFactoryTemps(text){
+  const out={1:null,2:null,3:null};
+  for(const line of text.replace(/\r/g,"").split("\n")){
+    let idx=null;
+    if(/①|まるいち|丸一|丸1|構内.*1/i.test(line))idx=1;
+    else if(/②|まるに|丸二|丸2|構内.*2/i.test(line))idx=2;
+    else if(/③|まるさん|丸三|丸3|構内.*3/i.test(line))idx=3;
+    if(!idx)continue;
+    const vals=parseMeasurementValues(line).values.filter(v=>/^\d{1,3}\.\d$/.test(v));
+    if(vals.length)out[idx]=Number(vals[vals.length-1]);
+  }
+  return out;
+}
+
+function getSheetTarget(wbdoc,reldoc,name){
+  const sheet=[...wbdoc.getElementsByTagName("sheet")].find(x=>x.getAttribute("name")===name);
+  if(!sheet)return null;
+  const rid=sheet.getAttribute("r:id");
+  const rel=[...reldoc.getElementsByTagName("Relationship")].find(x=>x.getAttribute("Id")===rid);
+  if(!rel)return null;
+  let target=rel.getAttribute("Target").replace(/^\//,"");
+  if(!target.startsWith("xl/"))target="xl/"+target.replace(/^\.\//,"");
+  return target;
+}
+
+function ensureRow(doc,rowNum){
+  const ns=doc.documentElement.namespaceURI;
+  const sheetData=doc.getElementsByTagName("sheetData")[0];
+  let row=[...sheetData.getElementsByTagName("row")].find(r=>Number(r.getAttribute("r"))===rowNum);
+  if(!row){
+    row=doc.createElementNS(ns,"row");
+    row.setAttribute("r",String(rowNum));
+    let inserted=false;
+    for(const existing of [...sheetData.getElementsByTagName("row")]){
+      if(Number(existing.getAttribute("r"))>rowNum){
+        sheetData.insertBefore(row,existing);
+        inserted=true;
+        break;
+      }
+    }
+    if(!inserted)sheetData.appendChild(row);
+  }
+  return row;
+}
+
+function setCellNumber(doc,ref,value){
+  const ns=doc.documentElement.namespaceURI;
+  const rowNum=Number((ref.match(/\d+/)||["0"])[0]);
+  const row=ensureRow(doc,rowNum);
+  let cell=[...row.getElementsByTagName("c")].find(c=>c.getAttribute("r")===ref);
+  if(!cell){
+    cell=doc.createElementNS(ns,"c");
+    cell.setAttribute("r",ref);
+    row.appendChild(cell);
+  }
+  cell.removeAttribute("t");
+  while(cell.firstChild)cell.removeChild(cell.firstChild);
+  const v=doc.createElementNS(ns,"v");
+  v.textContent=String(Number(value));
+  cell.appendChild(v);
+}
+
+function setCellText(doc,ref,value){
+  const ns=doc.documentElement.namespaceURI;
+  const rowNum=Number((ref.match(/\d+/)||["0"])[0]);
+  const row=ensureRow(doc,rowNum);
+  let cell=[...row.getElementsByTagName("c")].find(c=>c.getAttribute("r")===ref);
+  if(!cell){
+    cell=doc.createElementNS(ns,"c");
+    cell.setAttribute("r",ref);
+    row.appendChild(cell);
+  }
+  cell.setAttribute("t","inlineStr");
+  while(cell.firstChild)cell.removeChild(cell.firstChild);
+  const is=doc.createElementNS(ns,"is");
+  const t=doc.createElementNS(ns,"t");
+  t.setAttribute("xml:space","preserve");
+  t.textContent=String(value??"");
+  is.appendChild(t);
+  cell.appendChild(is);
+}
+
+function machineValues(machine){
+  const range=machineBlockRange(machine);
+  if(!range)return [];
+  const rawLines=range.lines.slice(range.start,range.end);
+  if(rawLines.length)rawLines[0]=rawLines[0].replace(MACHINE_RE," ").trim();
+  const values=[];
+  for(const line of rawLines){
+    values.push(...parseMeasurementValues(line).values.filter(v=>/^-?\d{1,3}\.\d$/.test(v)).map(Number));
+  }
+  return values;
+}
+
 async function build(){
  try{
   const text=input.value.replace(/\r/g,"").trim();
-  if(!text)throw new Error("Word測定データを貼り付けてください。");
+  if(!text)throw new Error("Word測定データを選択してください。");
   result.textContent="生成中…";
   if(typeof SSR_TEMPLATE_B64!=="string"||!SSR_TEMPLATE_B64)throw new Error("標準ひな形を読み込めませんでした。");
+
   const binary=atob(SSR_TEMPLATE_B64);
   const bytes=new Uint8Array(binary.length);
   for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
   const zip=await JSZip.loadAsync(bytes.buffer);
+
   const parser=new DOMParser(),ser=new XMLSerializer();
   const wbxml=await zip.file("xl/workbook.xml").async("string");
   const wbdoc=parser.parseFromString(wbxml,"application/xml");
-  const sheet=[...wbdoc.getElementsByTagName("sheet")].find(x=>x.getAttribute("name")==="スマホ入力");
-  if(!sheet)throw new Error("「スマホ入力」シートが見つかりません。基準Excelを確認してください。");
-  const rid=sheet.getAttribute("r:id");
   const relxml=await zip.file("xl/_rels/workbook.xml.rels").async("string");
   const reldoc=parser.parseFromString(relxml,"application/xml");
-  const rel=[...reldoc.getElementsByTagName("Relationship")].find(x=>x.getAttribute("Id")===rid);
-  if(!rel)throw new Error("スマホ入力シートの参照を取得できません。");
-  let target=rel.getAttribute("Target").replace(/^\//,"");
-  if(!target.startsWith("xl/"))target="xl/"+target.replace(/^\.\//,"");
-  const sxml=await zip.file(target).async("string");
-  const sdoc=parser.parseFromString(sxml,"application/xml");
-  const ns=sdoc.documentElement.namespaceURI;
-  const sheetData=sdoc.getElementsByTagName("sheetData")[0];
-  const rows=[...sheetData.getElementsByTagName("row")];
-  const rowMap=new Map(rows.map(r=>[Number(r.getAttribute("r")),r]));
-  for(let n=5;n<=204;n++){
-   let row=rowMap.get(n);
-   if(!row){row=sdoc.createElementNS(ns,"row");row.setAttribute("r",String(n));sheetData.appendChild(row);rowMap.set(n,row)}
-   for(const c of [...row.getElementsByTagName("c")])if(c.getAttribute("r")===colA(n))row.removeChild(c);
+
+  const mainTarget=getSheetTarget(wbdoc,reldoc,"リレー配置と測定温度記入シート");
+  const verticalTarget=getSheetTarget(wbdoc,reldoc,"縦データ");
+  if(!mainTarget||!verticalTarget)throw new Error("標準ひな形のシート構成を確認できませんでした。");
+
+  const mainDoc=parser.parseFromString(await zip.file(mainTarget).async("string"),"application/xml");
+  const verticalDoc=parser.parseFromString(await zip.file(verticalTarget).async("string"),"application/xml");
+
+  const date=parseDateFromText(text);
+  if(date){
+    setCellText(mainDoc,"O1",date.full);
+    for(const col of Object.values(VERTICAL_COL))setCellText(verticalDoc,col+"2",date.short);
   }
-  const lines=text.split("\n").slice(0,200);
-  lines.forEach((line,i)=>{
-   const n=5+i,row=rowMap.get(n);
-   const c=sdoc.createElementNS(ns,"c");c.setAttribute("r",colA(n));c.setAttribute("t","inlineStr");
-   const is=sdoc.createElementNS(ns,"is"),t=sdoc.createElementNS(ns,"t");t.setAttribute("xml:space","preserve");t.textContent=line;
-   is.appendChild(t);c.appendChild(is);row.appendChild(c);
-  });
-  zip.file(target,ser.serializeToString(sdoc));
+
+  const factory=parseFactoryTemps(text);
+  const factoryText=[1,2,3].map(i=>"①②③"[i-1]+(factory[i]==null?"—":factory[i].toFixed(1)+"℃")).join("　");
+  setCellText(mainDoc,"S1",factoryText);
+
+  let measured=0;
+  for(const machine of Object.keys(TEMPLATE_MAP)){
+    const vals=machineValues(machine);
+    if(!vals.length)continue;
+    const expected=EXPECTED_COUNTS[machine];
+    if(vals.length!==expected)throw new Error(machine+" のデータを修正してから保存してください。");
+    measured++;
+
+    const map=TEMPLATE_MAP[machine];
+    setCellNumber(mainDoc,map.panel[0],vals[0]);
+    setCellNumber(mainDoc,map.panel[1],vals[1]);
+    map.ssr.forEach((ref,i)=>setCellNumber(mainDoc,ref,vals[i+2]));
+
+    const vcol=VERTICAL_COL[machine];
+    setCellNumber(verticalDoc,vcol+"3",Math.max(vals[0],vals[1]));
+    vals.slice(2).forEach((v,i)=>setCellNumber(verticalDoc,vcol+String(6+i),v));
+  }
+
+  if(!measured)throw new Error("機台データを認識できませんでした。Wordデータを確認してください。");
+
+  zip.file(mainTarget,ser.serializeToString(mainDoc));
+  zip.file(verticalTarget,ser.serializeToString(verticalDoc));
+
   let calc=wbdoc.getElementsByTagName("calcPr")[0];
-  if(!calc){calc=wbdoc.createElementNS(wbdoc.documentElement.namespaceURI,"calcPr");wbdoc.documentElement.appendChild(calc)}
-  calc.setAttribute("fullCalcOnLoad","1");calc.setAttribute("forceFullCalc","1");calc.setAttribute("calcMode","auto");
+  if(!calc){
+    calc=wbdoc.createElementNS(wbdoc.documentElement.namespaceURI,"calcPr");
+    wbdoc.documentElement.appendChild(calc);
+  }
+  calc.setAttribute("fullCalcOnLoad","1");
+  calc.setAttribute("forceFullCalc","1");
+  calc.setAttribute("calcMode","auto");
   zip.file("xl/workbook.xml",ser.serializeToString(wbdoc));
+
   const out=await zip.generateAsync({type:"blob",mimeType:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
-  const a=document.createElement("a");a.href=URL.createObjectURL(out);a.download="SSR温測_生成.xlsx";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),3000);
-  result.textContent="生成完了。\n入力 "+lines.length+" 行を「スマホ入力」へ反映しました。\nExcelを開いて横・縦データを確認してください。";
- }catch(e){result.textContent="エラー: "+e.message}
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(out);
+  a.download=date?date.file+".xlsx":"SSR温測_生成.xlsx";
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),3000);
+  result.textContent="生成完了。\n標準ひな形へ "+measured+" 機台を反映しました。";
+ }catch(e){
+  result.textContent="エラー: "+e.message;
+ }
 }
+
 let pendingGenerate=false;
 document.getElementById("generate").addEventListener("click",()=>{
   const issueCount=renderMissingData();
@@ -236,7 +386,7 @@ function machineBlockRange(machine){
 
   for(let i=0;i<lines.length;i++){
     const hit=lines[i].match(MACHINE_RE);
-    if(hit&&hit[1].toUpperCase()===machine){
+    if(hit&&normalizeMachineName(hit[1])===machine){
       start=i;
       break;
     }
