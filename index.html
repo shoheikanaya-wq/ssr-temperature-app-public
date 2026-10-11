@@ -12,7 +12,7 @@
 </head>
 <body>
 <main>
-<h1>SSR温測 <small>v3.32</small></h1>
+<h1>SSR温測 <small>v3.33</small></h1>
 <p class="intro-copy">Word測定データを貼り付け、基準Excel v3.22へ反映して出力します。</p><p class="privacy-note">🔒 端末内処理：入力した測定データは外部サーバーへ送信しません。</p>
 <p><label class="file-label word-file-label">① Wordファイルを選択
 <input id="wordFile" type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"></label></p>
@@ -24,7 +24,11 @@
 <p><label class="file-label">② 基準Excel v3.22を選択<br><input id="template" type="file" accept=".xlsx"></label></p>
 <p><button id="generate" class="pressable" type="button">③ Excelを生成</button></p>
 <section id="installBox" class="install-box">
-  <strong>📱 ホーム画面にSSR温測を追加</strong>
+  <strong>📱 Android / iPhone にSSR温測を追加</strong>
+  <div class="install-qr-wrap">
+    <img class="install-qr" src="ssr-install-qr.png" alt="SSR温測インストールQR">
+    <p class="install-qr-copy">別のスマホでQRを読み取ると、SSR温測のインストールページが開きます。</p>
+  </div>
   <p id="installGuide" class="install-guide">お使いの端末に合う手順を選んでください。</p>
   <div class="install-grid">
     <div class="install-card" id="androidGuide">
@@ -48,11 +52,6 @@
       <p class="install-note">App Storeから入れる方式ではなく、Safariからホーム画面へ追加するWebアプリです。</p>
     </div>
   </div>
-</section>
-<section id="updateBox" class="update-box" hidden>
-  <strong>🔄 最新版があります</strong>
-  <p class="update-copy">更新すると最新のSSR温測に切り替わります。</p>
-  <button id="updateApp" class="pressable" type="button">最新版に更新</button>
 </section>
 <pre id="result" class="result"></pre>
 </main>

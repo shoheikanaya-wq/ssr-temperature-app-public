@@ -1,4 +1,4 @@
-const VERSION="3.32";
+const VERSION="3.33";
 const input=document.getElementById("input"),template=document.getElementById("template"),result=document.getElementById("result");
 const wordFile=document.getElementById("wordFile");
 
@@ -161,7 +161,7 @@ async function build(){
   calc.setAttribute("fullCalcOnLoad","1");calc.setAttribute("forceFullCalc","1");calc.setAttribute("calcMode","auto");
   zip.file("xl/workbook.xml",ser.serializeToString(wbdoc));
   const out=await zip.generateAsync({type:"blob",mimeType:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
-  const a=document.createElement("a");a.href=URL.createObjectURL(out);a.download="SSR温測_v3.32_生成.xlsx";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),3000);
+  const a=document.createElement("a");a.href=URL.createObjectURL(out);a.download="SSR温測_v3.33_生成.xlsx";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),3000);
   result.textContent="生成完了。\n入力 "+lines.length+" 行を「スマホ入力」へ反映しました。\nExcelを開いて横・縦データを確認してください。";
  }catch(e){result.textContent="エラー: "+e.message}
 }
@@ -178,31 +178,7 @@ document.getElementById("generate").addEventListener("click",()=>{
   build();
 });
 if("serviceWorker" in navigator){
-  let refreshing=false;
-  const updateBox=document.getElementById("updateBox");
-  const updateBtn=document.getElementById("updateApp");
-  const showUpdate=reg=>{
-    if(!reg.waiting)return;
-    if(updateBox)updateBox.hidden=false;
-    if(updateBtn)updateBtn.onclick=()=>{
-      updateBtn.disabled=true;
-      reg.waiting.postMessage({type:"SKIP_WAITING"});
-    };
-  };
-  navigator.serviceWorker.addEventListener("controllerchange",()=>{
-    if(refreshing)return;
-    refreshing=true;
-    location.reload();
-  });
   navigator.serviceWorker.register("./sw.js").then(reg=>{
-    showUpdate(reg);
-    reg.addEventListener("updatefound",()=>{
-      const worker=reg.installing;
-      if(!worker)return;
-      worker.addEventListener("statechange",()=>{
-        if(worker.state==="installed" && navigator.serviceWorker.controller)showUpdate(reg);
-      });
-    });
     window.addEventListener("focus",()=>reg.update());
     document.addEventListener("visibilitychange",()=>{
       if(document.visibilityState==="visible")reg.update();
