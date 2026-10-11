@@ -1,4 +1,4 @@
-const VERSION="1.2";
+const VERSION="1.3";
 const input=document.getElementById("input"),result=document.getElementById("result");
 const wordFile=document.getElementById("wordFile");
 
