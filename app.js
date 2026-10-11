@@ -1,4 +1,4 @@
-const VERSION="3.25";
+const VERSION="3.26";
 const input=document.getElementById("input"),template=document.getElementById("template"),result=document.getElementById("result");
 const wordFile=document.getElementById("wordFile");
 
@@ -29,7 +29,6 @@ if(wordFile){
       if(!text)throw new Error("Word文書に読み取れる文字がありません。");
       input.value=text;
       pendingGenerate=false;
-      refreshInputSuggestion();
       renderMissingData();
       result.textContent="Word読み込み完了："+file.name;
     }catch(e){
@@ -77,10 +76,16 @@ function parseMachineBlocks(text){
     if(hit){
       if(current)blocks.push(current);
       const machine=hit[1].toUpperCase();
-      const after=raw.replace(hit[0]," ");
-      current={machine,text:after,count:countNumbers(after)};
+      const after=raw.replace(hit[0]," ").trim();
+      current={machine,lines:[],text:"",count:0};
+      if(after){
+        current.lines.push(after);
+        current.text=after;
+        current.count+=countNumbers(after);
+      }
     }else if(current){
-      current.text+="\n"+raw;
+      current.lines.push(raw);
+      current.text+=(current.text?"\n":"")+raw;
       current.count+=countNumbers(raw);
     }
   }
@@ -157,25 +162,17 @@ async function build(){
   calc.setAttribute("fullCalcOnLoad","1");calc.setAttribute("forceFullCalc","1");calc.setAttribute("calcMode","auto");
   zip.file("xl/workbook.xml",ser.serializeToString(wbdoc));
   const out=await zip.generateAsync({type:"blob",mimeType:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
-  const a=document.createElement("a");a.href=URL.createObjectURL(out);a.download="SSR温測_v3.25_生成.xlsx";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),3000);
+  const a=document.createElement("a");a.href=URL.createObjectURL(out);a.download="SSR温測_v3.26_生成.xlsx";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),3000);
   result.textContent="生成完了。\n入力 "+lines.length+" 行を「スマホ入力」へ反映しました。\nExcelを開いて横・縦データを確認してください。";
  }catch(e){result.textContent="エラー: "+e.message}
 }
 let pendingGenerate=false;
 document.getElementById("generate").addEventListener("click",()=>{
-  const joined=findInputSuggestion(input.value);
-  if(joined){
-    pendingGenerate=true;
-    refreshInputSuggestion();
-    result.textContent="怪しい入力を確認してください。";
-    assistBox?.scrollIntoView({behavior:"smooth",block:"center"});
-    return;
-  }
   const countIssue=findCountIssue(input.value);
   if(countIssue){
     pendingGenerate=true;
     renderMissingData();
-    result.textContent="不足データを手入力してください。";
+    result.textContent="不足している行を手入力してください。";
     missingBox?.scrollIntoView({behavior:"smooth",block:"center"});
     return;
   }
@@ -252,60 +249,105 @@ if(standalone){
   if(installBtn) installBtn.hidden=true;
 }
 
-const assistBox=document.getElementById("assistBox");
-const assistText=document.getElementById("assistText");
-const assistChoices=document.getElementById("assistChoices");
-const assistManual=document.getElementById("assistManual");
-
 const missingBox=document.getElementById("missingBox");
 const missingList=document.getElementById("missingList");
 
-function machineSlots(machine){
-  const rows=MACHINE_LAYOUT[machine]||[];
-  const slots=[
-    {index:0,label:"盤内温度 上"},
-    {index:1,label:"盤内温度 下"}
-  ];
-  let idx=2;
-  rows.forEach((count,row)=>{
-    for(let pos=1;pos<=count;pos++){
-      slots.push({index:idx,label:"SSR "+(row+1)+"段目 "+pos+"番"});
-      idx++;
+function blockRowValues(block){
+  const rows=(block.lines||[])
+    .map(line=>(line.match(/-?\d+(?:\.\d+)?/g)||[]))
+    .filter(values=>values.length);
+  const panel=rows.length?rows[0].slice(0,2):[];
+  const ssrRows=rows.length?rows.slice(1):[];
+  return {panel,ssrRows};
+}
+
+function renderValueRow(machine,label,values,expectedCount,rowIndex,isPanel=false){
+  const wrap=document.createElement("div");
+  wrap.className="missing-row";
+
+  const head=document.createElement("div");
+  head.className="missing-row-head";
+  head.textContent=label+"（"+values.length+"/"+expectedCount+"）";
+  wrap.appendChild(head);
+
+  const grid=document.createElement("div");
+  grid.className="missing-grid";
+
+  let highlighted=false;
+  for(let i=0;i<expectedCount;i++){
+    const cell=document.createElement("div");
+    cell.className="missing-cell";
+
+    const lab=document.createElement("span");
+    lab.className="missing-cell-label";
+    lab.textContent=isPanel?(i===0?"上":"下"):(i+1)+"";
+
+    const field=document.createElement("input");
+    field.type="number";
+    field.step="0.1";
+    field.inputMode="decimal";
+    field.value=values[i]??"";
+    field.placeholder="—";
+    field.dataset.machine=machine;
+    field.dataset.row=String(rowIndex);
+    field.dataset.pos=String(i);
+    field.dataset.panel=isPanel?"1":"0";
+
+    if(i>=values.length && !highlighted){
+      cell.classList.add("likely-missing");
+      const tag=document.createElement("span");
+      tag.className="likely-tag";
+      tag.textContent="ここでは？";
+      cell.appendChild(tag);
+      highlighted=true;
     }
-  });
-  return slots;
-}
 
-function machineRange(text,machine){
-  const re=new RegExp(MACHINE_RE.source,"ig");
-  let m;
-  while((m=re.exec(text))){
-    if(m[1].toUpperCase()!==machine)continue;
-    const start=m.index+m[0].length;
-    const next=re.exec(text);
-    return {start,end:next?next.index:text.length};
+    field.addEventListener("change",()=>{
+      syncMissingEditorToInput();
+      renderMissingData();
+    });
+
+    cell.append(lab,field);
+    grid.appendChild(cell);
   }
-  return null;
+  wrap.appendChild(grid);
+  return wrap;
 }
 
-function insertMissingValue(machine,slotIndex,value){
+function rebuildMachineBlock(machine,panel,ssrRows){
   const range=machineRange(input.value,machine);
   if(!range)return false;
-  const part=input.value.slice(range.start,range.end);
-  const nums=[...part.matchAll(/-?\d+(?:\.\d+)?/g)];
-  let at=range.end;
-  let prefix="\n";
-  if(slotIndex<nums.length){
-    at=range.start+nums[slotIndex].index;
-    prefix="";
+  const rows=[];
+  if(panel.some(v=>v!==""))rows.push(panel.filter(v=>v!=="").join(" "));
+  for(const row of ssrRows){
+    if(row.some(v=>v!==""))rows.push(row.filter(v=>v!=="").join(" "));
   }
-  input.value=input.value.slice(0,at)+prefix+value+" "+input.value.slice(at);
+  const body="\n"+rows.join("\n")+"\n";
+  input.value=input.value.slice(0,range.start)+body+input.value.slice(range.end);
   return true;
+}
+
+function syncMissingEditorToInput(){
+  const cards=[...missingList.querySelectorAll(".missing-card")];
+  for(const card of cards){
+    const machine=card.dataset.machine;
+    const panel=["",""];
+    const rows=(MACHINE_LAYOUT[machine]||[]).map(n=>Array(n).fill(""));
+    for(const field of card.querySelectorAll("input[data-machine]")){
+      const value=field.value.trim();
+      const row=Number(field.dataset.row);
+      const pos=Number(field.dataset.pos);
+      if(field.dataset.panel==="1")panel[pos]=value;
+      else if(rows[row])rows[row][pos]=value;
+    }
+    rebuildMachineBlock(machine,panel,rows);
+  }
 }
 
 function renderMissingData(){
   if(!missingBox||!missingList)return;
   missingList.replaceChildren();
+
   const issues=parseMachineBlocks(input.value)
     .map(block=>({...block,expected:EXPECTED_COUNTS[block.machine]||0}))
     .filter(block=>block.expected&&block.count<block.expected);
@@ -318,144 +360,48 @@ function renderMissingData(){
   for(const issue of issues){
     const card=document.createElement("div");
     card.className="missing-card";
+    card.dataset.machine=issue.machine;
 
     const title=document.createElement("div");
     title.className="missing-title";
     title.textContent=issue.machine+"：あと"+(issue.expected-issue.count)+"個不足";
     card.appendChild(title);
 
-    const rows=MACHINE_LAYOUT[issue.machine];
-    const detail=document.createElement("div");
-    detail.className="missing-detail";
-    detail.textContent="盤内温度2個 / SSR "+rows.map((n,i)=>(i+1)+"段目 "+n+"個").join(" / ");
-    card.appendChild(detail);
+    const parsed=blockRowValues(issue);
+    const panelValues=parsed.panel;
+    const expectedRows=MACHINE_LAYOUT[issue.machine];
 
-    const entry=document.createElement("div");
-    entry.className="missing-entry";
-
-    const select=document.createElement("select");
-    select.className="missing-position";
-    for(const slot of machineSlots(issue.machine)){
-      const o=document.createElement("option");
-      o.value=String(slot.index);
-      o.textContent=slot.label;
-      if(slot.index===Math.min(issue.count,issue.expected-1))o.selected=true;
-      select.appendChild(o);
+    if(panelValues.length<2){
+      card.appendChild(renderValueRow(issue.machine,"盤内温度",panelValues,2,-1,true));
     }
 
-    const field=document.createElement("input");
-    field.type="number";
-    field.step="0.1";
-    field.inputMode="decimal";
-    field.placeholder="不足値";
-
-    const add=document.createElement("button");
-    add.type="button";
-    add.className="pressable missing-add";
-    add.textContent="追加";
-    add.addEventListener("click",()=>{
-      const value=field.value.trim();
-      if(!value){field.focus();return;}
-      if(!insertMissingValue(issue.machine,Number(select.value),value))return;
-      refreshInputSuggestion();
-      renderMissingData();
-      const still=findCountIssue(input.value);
-      if(pendingGenerate&&!still&&!findInputSuggestion(input.value)){
-        pendingGenerate=false;
-        result.textContent="確認完了。Excelを生成します…";
-        build();
-      }else{
-        result.textContent=issue.machine+" に "+value+" を追加しました。";
+    for(let rowIndex=0;rowIndex<expectedRows.length;rowIndex++){
+      const values=parsed.ssrRows[rowIndex]||[];
+      if(values.length<expectedRows[rowIndex]){
+        card.appendChild(
+          renderValueRow(
+            issue.machine,
+            "SSR "+(rowIndex+1)+"段目",
+            values,
+            expectedRows[rowIndex],
+            rowIndex,
+            false
+          )
+        );
       }
-    });
+    }
 
-    entry.append(select,field,add);
-    card.appendChild(entry);
     missingList.appendChild(card);
   }
+
   missingBox.hidden=false;
 }
-
-function findInputSuggestion(text){
-  const chunks=text.split(/\s+/).filter(Boolean);
-  for(const chunk of chunks){
-    let m=chunk.match(/^(\d{2}\.\d)(\d{2}\.\d)(\d\.\d)$/);
-    if(m){
-      return {
-        chunk,
-        message:"「"+chunk+"」は数値がつながっている可能性があります。どれですか？",
-        choices:[
-          m[1]+" "+m[2]+" 3"+m[3],
-          m[1]+" "+m[2]+" 4"+m[3],
-          m[1]+" "+m[2]+" 5"+m[3]
-        ]
-      };
-    }
-    m=chunk.match(/^(\d{2}\.\d)(\d{2}\.\d)$/);
-    if(m){
-      return {
-        chunk,
-        message:"「"+chunk+"」は2つの測定値がつながっている可能性があります。",
-        choices:[m[1]+" "+m[2]]
-      };
-    }
-  }
-  return null;
-}
-
-function refreshInputSuggestion(){
-  if(!assistBox||!assistText||!assistChoices)return;
-  const s=findInputSuggestion(input.value);
-  assistChoices.replaceChildren();
-  if(!s){
-    assistBox.hidden=true;
-    return;
-  }
-  assistText.textContent=s.message;
-  for(const choice of s.choices||[]){
-    const b=document.createElement("button");
-    b.type="button";
-    b.className="pressable assist-choice";
-    b.textContent=choice;
-    b.addEventListener("click",()=>{
-      input.value=input.value.replace(s.chunk,choice);
-      input.focus();
-      const next=findInputSuggestion(input.value);
-      refreshInputSuggestion();
-      if(pendingGenerate && !next){
-        pendingGenerate=false;
-        result.textContent="確認完了。Excelを生成します…";
-        build();
-      }else if(pendingGenerate && next){
-        result.textContent="次の怪しい入力を確認してください。";
-        assistBox?.scrollIntoView({behavior:"smooth",block:"center"});
-      }
-    });
-    assistChoices.appendChild(b);
-  }
-  if(s.type==="count" && (!s.choices || !s.choices.length)){
-    assistManual.textContent="手入力で確認";
-  }else if(assistManual){
-    assistManual.textContent="どれでもない";
-  }
-  assistBox.hidden=false;
-}
-
 input.addEventListener("input",()=>{
   pendingGenerate=false;
-  refreshInputSuggestion();
   renderMissingData();
 });
 input.addEventListener("change",()=>{
   pendingGenerate=false;
-  refreshInputSuggestion();
   renderMissingData();
 });
-if(assistManual)assistManual.addEventListener("click",()=>{
-  pendingGenerate=false;
-  assistBox.hidden=true;
-  input.focus();
-  result.textContent="候補を使わず手入力で修正してください。";
-});
-refreshInputSuggestion();
 renderMissingData();
