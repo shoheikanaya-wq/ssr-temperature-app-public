@@ -69,3 +69,6 @@
 .assist-choices{display:flex;flex-wrap:wrap;gap:8px}
 .assist-choice{min-height:44px;padding:10px 14px}
 .assist-manual{margin-top:8px;border:0;background:transparent;text-decoration:underline;cursor:pointer;font-size:14px}
+
+.app-mode .intro-copy{display:none}
+.app-mode .privacy-note{margin:4px 0 10px;padding:4px 8px;font-size:12px;font-weight:600;background:transparent}

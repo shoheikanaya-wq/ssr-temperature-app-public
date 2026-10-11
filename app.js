@@ -54,7 +54,7 @@ function findCountIssue(text){
         machine:block.machine,
         expected,
         actual:block.count,
-        token:null,
+        chunk:null,
         choices:[],
         message:diff>0
           ? block.machine+"：必要 "+expected+"値に対して "+block.count+"値です。あと"+diff+"個不足しています。"
@@ -193,6 +193,7 @@ const isAndroid=/android/i.test(navigator.userAgent);
 if(isiOS && iosGuide) iosGuide.classList.add("current");
 if(isAndroid && androidGuide) androidGuide.classList.add("current");
 if(standalone){
+  document.body.classList.add("app-mode");
   const installBox=document.getElementById("installBox");
   if(installBox) installBox.hidden=true;
   if(installBtn) installBtn.hidden=true;
@@ -204,13 +205,13 @@ const assistChoices=document.getElementById("assistChoices");
 const assistManual=document.getElementById("assistManual");
 
 function findInputSuggestion(text){
-  const tokens=text.split(/\s+/).filter(Boolean);
-  for(const token of tokens){
-    let m=token.match(/^(\d{2}\.\d)(\d{2}\.\d)(\d\.\d)$/);
+  const chunks=text.split(/\s+/).filter(Boolean);
+  for(const chunk of chunks){
+    let m=chunk.match(/^(\d{2}\.\d)(\d{2}\.\d)(\d\.\d)$/);
     if(m){
       return {
-        token,
-        message:"「"+token+"」は数値がつながっている可能性があります。どれですか？",
+        chunk,
+        message:"「"+chunk+"」は数値がつながっている可能性があります。どれですか？",
         choices:[
           m[1]+" "+m[2]+" 3"+m[3],
           m[1]+" "+m[2]+" 4"+m[3],
@@ -218,11 +219,11 @@ function findInputSuggestion(text){
         ]
       };
     }
-    m=token.match(/^(\d{2}\.\d)(\d{2}\.\d)$/);
+    m=chunk.match(/^(\d{2}\.\d)(\d{2}\.\d)$/);
     if(m){
       return {
-        token,
-        message:"「"+token+"」は2つの測定値がつながっている可能性があります。",
+        chunk,
+        message:"「"+chunk+"」は2つの測定値がつながっている可能性があります。",
         choices:[m[1]+" "+m[2]]
       };
     }
@@ -245,7 +246,7 @@ function refreshInputSuggestion(){
     b.className="pressable assist-choice";
     b.textContent=choice;
     b.addEventListener("click",()=>{
-      input.value=input.value.replace(s.token,choice);
+      input.value=input.value.replace(s.chunk,choice);
       input.focus();
       const next=findValidationIssue(input.value);
       refreshInputSuggestion();
