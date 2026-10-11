@@ -1,4 +1,4 @@
-const VERSION="3.29";
+const VERSION="3.30";
 const input=document.getElementById("input"),template=document.getElementById("template"),result=document.getElementById("result");
 const wordFile=document.getElementById("wordFile");
 
@@ -158,7 +158,7 @@ async function build(){
   calc.setAttribute("fullCalcOnLoad","1");calc.setAttribute("forceFullCalc","1");calc.setAttribute("calcMode","auto");
   zip.file("xl/workbook.xml",ser.serializeToString(wbdoc));
   const out=await zip.generateAsync({type:"blob",mimeType:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
-  const a=document.createElement("a");a.href=URL.createObjectURL(out);a.download="SSR温測_v3.29_生成.xlsx";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),3000);
+  const a=document.createElement("a");a.href=URL.createObjectURL(out);a.download="SSR温測_v3.30_生成.xlsx";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),3000);
   result.textContent="生成完了。\n入力 "+lines.length+" 行を「スマホ入力」へ反映しました。\nExcelを開いて横・縦データを確認してください。";
  }catch(e){result.textContent="エラー: "+e.message}
 }
@@ -250,8 +250,8 @@ const missingList=document.getElementById("missingList");
 
 function expectedRows(machine){
   return [
-    {label:"盤内温度",count:2},
-    ...(MACHINE_LAYOUT[machine]||[]).map((count,i)=>({label:"SSR "+(i+1)+"段目",count}))
+    {label:"盤内温度",count:2,type:"panel"},
+    ...(MACHINE_LAYOUT[machine]||[]).map((count,i)=>({label:"SSR "+(i+1)+"段目",count,type:"ssr"}))
   ];
 }
 
@@ -279,7 +279,43 @@ function splitRowValues(line){
   return line.trim().split(/\s+/).filter(Boolean);
 }
 
-function analyzeRow(line,expectedCount){
+function parsePanelTemperatures(line){
+  const raw=line.trim();
+  if(!raw)return {valid:false,values:[]};
+
+  const spaced=raw.split(/\s+/).filter(Boolean);
+  if(spaced.length===2 && spaced.every(v=>/^\d{2}\.\d$/.test(v))){
+    return {valid:true,values:spaced};
+  }
+
+  if(spaced.length===1){
+    const m=spaced[0].match(/^(\d{2}\.\d)(\d{2}\.\d)$/);
+    if(m)return {valid:true,values:[m[1],m[2]]};
+  }
+
+  return {valid:false,values:spaced};
+}
+
+function analyzeRow(line,spec){
+  if(spec.type==="panel"){
+    const panel=parsePanelTemperatures(line);
+    if(panel.valid)return {parts:splitRowValues(line),issues:[],logicalCount:2};
+
+    const parts=splitRowValues(line);
+    return {
+      parts,
+      logicalCount:panel.values.length,
+      issues:[{
+        kind:"replace-line",
+        index:0,
+        label:"要修正",
+        current:line.trim(),
+        placeholder:"例：32.0 28.9"
+      }]
+    };
+  }
+
+  const expectedCount=spec.count;
   const parts=splitRowValues(line);
   const malformed=[];
   parts.forEach((p,i)=>{
@@ -321,11 +357,12 @@ function analyzeRow(line,expectedCount){
     }
   }
 
-  return {parts,issues};
+  return {parts,issues,logicalCount:parts.length};
 }
 
-function renderHighlightedLine(line,expectedCount){
-  const {parts,issues}=analyzeRow(line,expectedCount);
+function renderHighlightedLine(line,spec){
+  const {parts,issues}=analyzeRow(line,spec);
+  const expectedCount=spec.count;
   const badIndexes=new Map();
   issues.forEach(issue=>badIndexes.set(issue.index,issue.label));
 
@@ -362,7 +399,7 @@ function renderHighlightedLine(line,expectedCount){
   return preview;
 }
 
-function replaceIssueInSource(machine,rowIndex,issueIndex,newText){
+function replaceIssueInSource(machine,rowIndex,issueIndex,newText,replaceWholeLine=false){
   const src=sourceBlock(machine);
   if(!src)return false;
   const row=src.rows[rowIndex];
@@ -371,13 +408,17 @@ function replaceIssueInSource(machine,rowIndex,issueIndex,newText){
   const parts=splitRowValues(row.text);
   const replacement=newText.trim().split(/\s+/).filter(Boolean);
 
-  if(issueIndex<parts.length){
-    parts.splice(issueIndex,1,...replacement);
+  let rebuilt;
+  if(replaceWholeLine){
+    rebuilt=newText.trim();
   }else{
-    parts.push(...replacement);
+    if(issueIndex<parts.length){
+      parts.splice(issueIndex,1,...replacement);
+    }else{
+      parts.push(...replacement);
+    }
+    rebuilt=parts.join(" ");
   }
-
-  const rebuilt=parts.join(" ");
   if(row.onMachineLine){
     const name=(src.lines[src.machineLine].match(MACHINE_RE)||[machine])[0];
     src.lines[src.machineLine]=name+(rebuilt?" "+rebuilt:"");
@@ -403,7 +444,7 @@ function renderMissingData(){
     const rowsToShow=[];
     for(let i=0;i<specs.length;i++){
       const row=src.rows[i]||{text:"",lineIndex:null,onMachineLine:false};
-      const analysis=analyzeRow(row.text,specs[i].count);
+      const analysis=analyzeRow(row.text,specs[i]);
       if(analysis.issues.length){
         rowsToShow.push({index:i,row,spec:specs[i],analysis});
       }
@@ -425,10 +466,10 @@ function renderMissingData(){
 
       const head=document.createElement("div");
       head.className="raw-row-head";
-      head.textContent=item.spec.label+"　必要 "+item.spec.count+"個 / 現在 "+countNumbers(item.row.text)+"個";
+      head.textContent=item.spec.label+"　必要 "+item.spec.count+"個 / 現在 "+item.analysis.logicalCount+"個";
       wrap.appendChild(head);
 
-      wrap.appendChild(renderHighlightedLine(item.row.text,item.spec.count));
+      wrap.appendChild(renderHighlightedLine(item.row.text,item.spec));
 
       for(const issue of item.analysis.issues){
         const correction=document.createElement("div");
@@ -453,7 +494,7 @@ function renderMissingData(){
         apply.className="pressable issue-apply";
         apply.textContent="修正を反映";
         apply.addEventListener("click",()=>{
-          if(replaceIssueInSource(machine,item.index,issue.index,edit.value)){
+          if(replaceIssueInSource(machine,item.index,issue.index,edit.value,issue.kind==="replace-line")){
             pendingGenerate=false;
             renderMissingData();
             result.textContent=machine+" "+item.spec.label+" の要修正箇所を反映しました。";
