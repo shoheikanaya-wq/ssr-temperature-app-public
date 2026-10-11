@@ -115,10 +115,6 @@ function findCountIssue(text){
   return null;
 }
 
-function findValidationIssue(text){
-  return findInputSuggestion(text)||findCountIssue(text);
-}
-
 async function build(){
  try{
   const text=input.value.replace(/\r/g,"").trim();
