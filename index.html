@@ -15,6 +15,12 @@
 <h1>SSR温測 <small>v3.23</small></h1>
 <p>Word測定データを貼り付け、基準Excel v3.22へ反映して出力します。</p><p class="privacy-note">🔒 端末内処理：入力した測定データは外部サーバーへ送信しません。</p>
 <textarea id="input" rows="16" placeholder="Wordの測定データをここへ貼り付け"></textarea>
+<section id="assistBox" class="assist-box" hidden>
+  <strong>入力候補</strong>
+  <p id="assistText" class="assist-text"></p>
+  <div id="assistChoices" class="assist-choices"></div>
+  <button id="assistManual" class="assist-manual" type="button">どれでもない</button>
+</section>
 <p><label class="file-label">① 基準Excel v3.22を選択<br><input id="template" type="file" accept=".xlsx"></label></p>
 <p><button id="generate" class="pressable" type="button">② Excelを生成</button></p>
 <section id="installBox" class="install-box">

@@ -63,3 +63,9 @@
 .update-box{margin-top:18px;padding:14px;border:1px solid #d4d9df;border-radius:12px;background:#fff7ed}
 .update-copy{margin:8px 0;line-height:1.6}
 .result{white-space:pre-wrap}
+
+.assist-box{margin:10px 0 0;padding:12px;border:1px solid #f0c36d;border-radius:12px;background:#fffaf0}
+.assist-text{margin:6px 0 10px;line-height:1.5}
+.assist-choices{display:flex;flex-wrap:wrap;gap:8px}
+.assist-choice{min-height:44px;padding:10px 14px}
+.assist-manual{margin-top:8px;border:0;background:transparent;text-decoration:underline;cursor:pointer;font-size:14px}

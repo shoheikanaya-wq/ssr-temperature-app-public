@@ -117,3 +117,67 @@ if(standalone && installGuide){
   installGuide.textContent="この端末にはSSR温測が追加済みです。";
   if(installBtn) installBtn.hidden=true;
 }
+
+const assistBox=document.getElementById("assistBox");
+const assistText=document.getElementById("assistText");
+const assistChoices=document.getElementById("assistChoices");
+const assistManual=document.getElementById("assistManual");
+
+function findInputSuggestion(text){
+  const tokens=text.split(/\s+/).filter(Boolean);
+  for(const token of tokens){
+    let m=token.match(/^(\d{2}\.\d)(\d{2}\.\d)(\d\.\d)$/);
+    if(m){
+      return {
+        token,
+        message:"「"+token+"」は数値がつながっている可能性があります。どれですか？",
+        choices:[
+          m[1]+" "+m[2]+" 3"+m[3],
+          m[1]+" "+m[2]+" 4"+m[3],
+          m[1]+" "+m[2]+" 5"+m[3]
+        ]
+      };
+    }
+    m=token.match(/^(\d{2}\.\d)(\d{2}\.\d)$/);
+    if(m){
+      return {
+        token,
+        message:"「"+token+"」は2つの測定値がつながっている可能性があります。",
+        choices:[m[1]+" "+m[2]]
+      };
+    }
+  }
+  return null;
+}
+
+function refreshInputSuggestion(){
+  if(!assistBox||!assistText||!assistChoices)return;
+  const s=findInputSuggestion(input.value);
+  assistChoices.replaceChildren();
+  if(!s){
+    assistBox.hidden=true;
+    return;
+  }
+  assistText.textContent=s.message;
+  for(const choice of s.choices){
+    const b=document.createElement("button");
+    b.type="button";
+    b.className="pressable assist-choice";
+    b.textContent=choice;
+    b.addEventListener("click",()=>{
+      input.value=input.value.replace(s.token,choice);
+      input.focus();
+      refreshInputSuggestion();
+    });
+    assistChoices.appendChild(b);
+  }
+  assistBox.hidden=false;
+}
+
+input.addEventListener("input",refreshInputSuggestion);
+input.addEventListener("change",refreshInputSuggestion);
+if(assistManual)assistManual.addEventListener("click",()=>{
+  assistBox.hidden=true;
+  input.focus();
+});
+refreshInputSuggestion();
