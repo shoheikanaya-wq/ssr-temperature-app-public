@@ -59,6 +59,13 @@
     border-radius:12px;
     background:#fafafa;
   }
+  .install-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+  .install-card{padding:14px;border:1px solid #d6dce3;border-radius:12px;background:#fff}
+  .install-card h3{margin:0 0 8px;font-size:18px}
+  .install-card ol{margin:8px 0 0;padding-left:1.4em;line-height:1.65}
+  .install-card.current{border-width:2px;box-shadow:0 0 0 3px rgba(37,99,235,.08)}
+  .install-note{margin:8px 0 0;font-size:14px;color:#475569;line-height:1.5}
+  @media (max-width:640px){.install-grid{grid-template-columns:1fr}}
   @media (prefers-reduced-motion:reduce){.pressable{transition:none}}
 </style>
 </head>
@@ -71,8 +78,29 @@
 <p><button id="generate" class="pressable" type="button">② Excelを生成</button></p>
 <section id="installBox" style="margin-top:18px;padding:14px;border:1px solid #d4d9df;border-radius:12px;background:#f8fafc">
   <strong>📱 ホーム画面にSSR温測を追加</strong>
-  <p id="installGuide" style="margin:8px 0;line-height:1.6">Android：Chromeの「アプリをインストール」／iPhone・iPad：Safariの共有 →「ホーム画面に追加」</p>
-  <button id="installApp" class="pressable" type="button" hidden>アプリをインストール</button>
+  <p id="installGuide" style="margin:8px 0;line-height:1.6">お使いの端末に合う手順を選んでください。</p>
+  <div class="install-grid">
+    <div class="install-card" id="androidGuide">
+      <h3>Android</h3>
+      <ol>
+        <li>Chromeでこのページを開く</li>
+        <li>下の「アプリをインストール」を押す</li>
+        <li>ホーム画面の「SSR温測」から起動</li>
+      </ol>
+      <p class="install-note">端末によってはChromeのメニュー内に「アプリをインストール」または「ホーム画面に追加」と表示されます。</p>
+      <p><button id="installApp" class="pressable" type="button" hidden>アプリをインストール</button></p>
+    </div>
+    <div class="install-card" id="iosGuide">
+      <h3>iPhone / iPad</h3>
+      <ol>
+        <li>Safariでこのページを開く</li>
+        <li>共有ボタンを押す</li>
+        <li>「ホーム画面に追加」を選ぶ</li>
+        <li>追加後、「SSR温測」アイコンから起動</li>
+      </ol>
+      <p class="install-note">App Storeから入れる方式ではなく、Safariからホーム画面へ追加するWebアプリです。</p>
+    </div>
+  </div>
 </section>
 <section id="updateBox" hidden style="margin-top:18px;padding:14px;border:1px solid #d4d9df;border-radius:12px;background:#fff7ed">
   <strong>🔄 最新版があります</strong>
