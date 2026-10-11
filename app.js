@@ -146,14 +146,24 @@ function parseDateFromText(text){
 
 function parseFactoryTemps(text){
   const out={1:null,2:null,3:null};
-  for(const line of text.replace(/\r/g,"").split("\n")){
-    let idx=null;
-    if(/①|まるいち|丸一|丸1|構内.*1/i.test(line))idx=1;
-    else if(/②|まるに|丸二|丸2|構内.*2/i.test(line))idx=2;
-    else if(/③|まるさん|丸三|丸3|構内.*3/i.test(line))idx=3;
-    if(!idx)continue;
-    const vals=parseMeasurementValues(line).values.filter(v=>/^\d{1,3}\.\d$/.test(v));
-    if(vals.length)out[idx]=Number(vals[vals.length-1]);
+  // Word transcription may use circled digits, kanji, hiragana, or katakana.
+  const labels=[
+    /(?:丸|まる|マル)\s*(?:一|いち|イチ|1)|(?:構内(?:温度)?)\s*(?:一|いち|イチ|1)/g,
+    /(?:丸|まる|マル)\s*(?:二|に|ニ|2)|(?:構内(?:温度)?)\s*(?:二|に|ニ|2)/g,
+    /(?:丸|まる|マル)\s*(?:三|さん|サン|3)|(?:構内(?:温度)?)\s*(?:三|さん|サン|3)/g
+  ];
+  for(const rawLine of text.replace(/\r/g,"").split("\n")){
+    const line=rawLine.normalize("NFKC").replace(/℃/g,"°C");
+    for(let i=0;i<labels.length;i++){
+      const re=labels[i];
+      re.lastIndex=0;
+      let match;
+      while((match=re.exec(line))!==null){
+        const after=line.slice(match.index+match[0].length);
+        const value=after.match(/(?:^|[^\d.])(-?\d{1,3}\.\d)(?!\d)/);
+        if(value)out[i+1]=Number(value[1]);
+      }
+    }
   }
   return out;
 }
