@@ -90,3 +90,13 @@
 .missing-cell.likely-missing{border:2px solid #d32f2f;background:#fff1f1}
 .missing-cell.likely-missing input{border-color:#d32f2f}
 .likely-tag{font-size:12px;font-weight:800;color:#c62828}
+
+.full-row-edit{padding:10px;border:1px solid #d9dde3;border-radius:12px;background:#fff;margin-top:10px}
+.row-problem{border-color:#e1a4a4}
+.row-problem-note{font-size:13px;font-weight:700;color:#b3261e;margin:0 0 8px}
+.row-apply{margin-top:10px;width:100%}
+.full-row-edit .missing-grid{grid-template-columns:repeat(auto-fit,minmax(72px,1fr))}
+.full-row-edit .missing-cell{min-width:0}
+.full-row-edit .missing-cell input{font-weight:700}
+.full-row-edit .missing-cell.likely-missing{border:2px solid #c62828;background:#fff0f0}
+.full-row-edit .missing-cell.likely-missing input{border:2px solid #c62828;background:#fff}
