@@ -153,7 +153,7 @@ function parseFactoryTemps(text){
     /(?:丸|まる|マル)\s*(?:三|さん|サン|3)|(?:構内(?:温度)?)\s*(?:三|さん|サン|3)/g
   ];
   for(const rawLine of text.replace(/\r/g,"").split("\n")){
-    const line=rawLine.normalize("NFKC").replace(/℃/g,"°C");
+    const line=rawLine.replace(/①/g,"丸1").replace(/②/g,"丸2").replace(/③/g,"丸3").normalize("NFKC").replace(/℃/g,"°C");
     for(let i=0;i<labels.length;i++){
       const re=labels[i];
       re.lastIndex=0;
