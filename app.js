@@ -1,4 +1,4 @@
-const VERSION="3.31";
+const VERSION="3.32";
 const input=document.getElementById("input"),template=document.getElementById("template"),result=document.getElementById("result");
 const wordFile=document.getElementById("wordFile");
 
@@ -118,28 +118,6 @@ function parseMachineBlocks(text){
   return blocks;
 }
 
-function findCountIssue(text){
-  for(const block of parseMachineBlocks(text)){
-    const expected=EXPECTED_COUNTS[block.machine];
-    if(!expected)continue;
-    if(block.count!==expected){
-      const diff=expected-block.count;
-      return {
-        type:"count",
-        machine:block.machine,
-        expected,
-        actual:block.count,
-        chunk:null,
-        choices:[],
-        message:diff>0
-          ? block.machine+"：必要 "+expected+"値に対して "+block.count+"値です。あと"+diff+"個不足しています。"
-          : block.machine+"：必要 "+expected+"値に対して "+block.count+"値です。"+Math.abs(diff)+"個多いので確認してください。"
-      };
-    }
-  }
-  return null;
-}
-
 async function build(){
  try{
   const text=input.value.replace(/\r/g,"").trim();
@@ -183,17 +161,16 @@ async function build(){
   calc.setAttribute("fullCalcOnLoad","1");calc.setAttribute("forceFullCalc","1");calc.setAttribute("calcMode","auto");
   zip.file("xl/workbook.xml",ser.serializeToString(wbdoc));
   const out=await zip.generateAsync({type:"blob",mimeType:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
-  const a=document.createElement("a");a.href=URL.createObjectURL(out);a.download="SSR温測_v3.31_生成.xlsx";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),3000);
+  const a=document.createElement("a");a.href=URL.createObjectURL(out);a.download="SSR温測_v3.32_生成.xlsx";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),3000);
   result.textContent="生成完了。\n入力 "+lines.length+" 行を「スマホ入力」へ反映しました。\nExcelを開いて横・縦データを確認してください。";
  }catch(e){result.textContent="エラー: "+e.message}
 }
 let pendingGenerate=false;
 document.getElementById("generate").addEventListener("click",()=>{
-  const countIssue=findCountIssue(input.value);
-  if(countIssue){
+  const issueCount=renderMissingData();
+  if(issueCount>0){
     pendingGenerate=true;
-    renderMissingData();
-    result.textContent="不足している行を手入力してください。";
+    result.textContent="要修正データを確認してください。";
     missingBox?.scrollIntoView({behavior:"smooth",block:"center"});
     return;
   }
@@ -354,30 +331,6 @@ function analyzeRow(line,spec){
     });
   }
 
-  if(parts.length<expectedCount && !malformed.length){
-    const missing=expectedCount-parts.length;
-    const anchor=Math.max(0,parts.length-1);
-    issues.push({
-      kind:parts.length?"replace":"insert",
-      index:anchor,
-      label:"ここでは？",
-      current:parts[anchor]||"",
-      placeholder:missing===1?"不足値を含めて修正":"不足"+missing+"個を含めて修正"
-    });
-  }
-
-  if(parts.length>expectedCount && !malformed.length){
-    for(let i=expectedCount;i<parts.length;i++){
-      issues.push({
-        kind:"replace",
-        index:i,
-        label:"余分？",
-        current:parts[i],
-        placeholder:"不要なら空欄"
-      });
-    }
-  }
-
   return {parts,issues,logicalCount:parts.length};
 }
 
@@ -408,14 +361,6 @@ function renderHighlightedLine(line,spec){
     }
     preview.appendChild(span);
   });
-
-  if(parts.length<expectedCount){
-    preview.append(" ");
-    const miss=document.createElement("span");
-    miss.className="bad-part missing-mark";
-    miss.textContent="← "+(expectedCount-parts.length)+"個不足";
-    preview.appendChild(miss);
-  }
 
   return preview;
 }
@@ -487,7 +432,7 @@ function renderMissingData(){
 
       const head=document.createElement("div");
       head.className="raw-row-head";
-      head.textContent=item.spec.label+"　必要 "+item.spec.count+"個 / 現在 "+item.analysis.logicalCount+"個";
+      head.textContent=item.spec.label+"　要修正";
       wrap.appendChild(head);
 
       wrap.appendChild(renderHighlightedLine(item.row.text,item.spec));
@@ -532,6 +477,7 @@ function renderMissingData(){
   }
 
   missingBox.hidden=total===0;
+  return total;
 }
 
 input.addEventListener("input",()=>{
