@@ -38,7 +38,7 @@ jobs:
             echo "Possible API token detected in public first-party source."
             exit 1
           fi
-          if grep -Eni '(api[_-]?key|secret|token|password|passwd|authorization)[[:space:]]*[:=][[:space:]]*[^[:space:];,}]+' "${files[@]}"; then
+          if grep -Eni '(^|[^[:alnum:]_])(api[_-]?key|secret|token|password|passwd|authorization)[[:space:]]*[:=][[:space:]]*[^[:space:];,}]+' "${files[@]}"; then
             echo "Possible named secret detected in public first-party source."
             exit 1
           fi

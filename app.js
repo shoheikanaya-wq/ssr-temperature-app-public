@@ -192,8 +192,9 @@ const iosGuide=document.getElementById("iosGuide");
 const isAndroid=/android/i.test(navigator.userAgent);
 if(isiOS && iosGuide) iosGuide.classList.add("current");
 if(isAndroid && androidGuide) androidGuide.classList.add("current");
-if(standalone && installGuide){
-  installGuide.textContent="この端末にはSSR温測が追加済みです。";
+if(standalone){
+  const installBox=document.getElementById("installBox");
+  if(installBox) installBox.hidden=true;
   if(installBtn) installBtn.hidden=true;
 }
 
