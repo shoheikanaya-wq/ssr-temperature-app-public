@@ -107,3 +107,13 @@ const standalone=(window.matchMedia&&window.matchMedia("(display-mode: standalon
 if(isiOS&&!standalone&&installGuide){
   installGuide.textContent="iPhone・iPad：Safariで開き、共有ボタン →「ホーム画面に追加」→ 追加。専用アイコンから起動できます。";
 }
+
+const androidGuide=document.getElementById("androidGuide");
+const iosGuide=document.getElementById("iosGuide");
+const isAndroid=/android/i.test(navigator.userAgent);
+if(isiOS && iosGuide) iosGuide.classList.add("current");
+if(isAndroid && androidGuide) androidGuide.classList.add("current");
+if(standalone && installGuide){
+  installGuide.textContent="この端末にはSSR温測が追加済みです。";
+  if(installBtn) installBtn.hidden=true;
+}
