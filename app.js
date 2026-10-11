@@ -1,4 +1,4 @@
-const VERSION="3.33";
+const VERSION="3.34";
 const input=document.getElementById("input"),template=document.getElementById("template"),result=document.getElementById("result");
 const wordFile=document.getElementById("wordFile");
 
@@ -161,7 +161,7 @@ async function build(){
   calc.setAttribute("fullCalcOnLoad","1");calc.setAttribute("forceFullCalc","1");calc.setAttribute("calcMode","auto");
   zip.file("xl/workbook.xml",ser.serializeToString(wbdoc));
   const out=await zip.generateAsync({type:"blob",mimeType:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
-  const a=document.createElement("a");a.href=URL.createObjectURL(out);a.download="SSR温測_v3.33_生成.xlsx";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),3000);
+  const a=document.createElement("a");a.href=URL.createObjectURL(out);a.download="SSR温測_v3.34_生成.xlsx";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),3000);
   result.textContent="生成完了。\n入力 "+lines.length+" 行を「スマホ入力」へ反映しました。\nExcelを開いて横・縦データを確認してください。";
  }catch(e){result.textContent="エラー: "+e.message}
 }
@@ -297,6 +297,18 @@ function analyzeRow(line,spec){
   }
 
   const issues=[];
+
+  if(parts.length<expectedCount && !parsed.invalid && malformed.length===0){
+    issues.push({
+      kind:"replace-line",
+      index:0,
+      label:"要修正",
+      current:line.trim(),
+      placeholder:"この行をそのまま修正"
+    });
+    return {parts,issues,logicalCount:parts.length};
+  }
+
   for(const i of malformed){
     issues.push({
       kind:"replace",
@@ -312,12 +324,20 @@ function analyzeRow(line,spec){
 
 function renderHighlightedLine(line,spec){
   const {parts,issues}=analyzeRow(line,spec);
-  const expectedCount=spec.count;
   const badIndexes=new Map();
   issues.forEach(issue=>badIndexes.set(issue.index,issue.label));
 
   const preview=document.createElement("div");
   preview.className="raw-line-preview";
+
+  const wholeLineIssue=issues.some(issue=>issue.kind==="replace-line");
+  if(wholeLineIssue){
+    const span=document.createElement("span");
+    span.className="bad-part";
+    span.textContent=line.trim()||"（この行が空です）";
+    preview.appendChild(span);
+    return preview;
+  }
 
   if(!parts.length){
     const s=document.createElement("span");
