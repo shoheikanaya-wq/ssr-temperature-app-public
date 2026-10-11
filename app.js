@@ -1,4 +1,4 @@
-const VERSION="3.26";
+const VERSION="3.27";
 const input=document.getElementById("input"),template=document.getElementById("template"),result=document.getElementById("result");
 const wordFile=document.getElementById("wordFile");
 
@@ -158,7 +158,7 @@ async function build(){
   calc.setAttribute("fullCalcOnLoad","1");calc.setAttribute("forceFullCalc","1");calc.setAttribute("calcMode","auto");
   zip.file("xl/workbook.xml",ser.serializeToString(wbdoc));
   const out=await zip.generateAsync({type:"blob",mimeType:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
-  const a=document.createElement("a");a.href=URL.createObjectURL(out);a.download="SSR温測_v3.26_生成.xlsx";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),3000);
+  const a=document.createElement("a");a.href=URL.createObjectURL(out);a.download="SSR温測_v3.27_生成.xlsx";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),3000);
   result.textContent="生成完了。\n入力 "+lines.length+" 行を「スマホ入力」へ反映しました。\nExcelを開いて横・縦データを確認してください。";
  }catch(e){result.textContent="エラー: "+e.message}
 }
@@ -248,150 +248,194 @@ if(standalone){
 const missingBox=document.getElementById("missingBox");
 const missingList=document.getElementById("missingList");
 
-function blockRowValues(block){
-  const rows=(block.lines||[])
-    .map(line=>(line.match(/-?\d+(?:\.\d+)?/g)||[]))
-    .filter(values=>values.length);
-  const panel=rows.length?rows[0].slice(0,2):[];
-  const ssrRows=rows.length?rows.slice(1):[];
-  return {panel,ssrRows};
+function rowSpec(machine){
+  return [
+    {label:"盤内温度",count:2},
+    ...(MACHINE_LAYOUT[machine]||[]).map((count,i)=>({
+      label:"SSR "+(i+1)+"段目",
+      count
+    }))
+  ];
 }
 
-function renderValueRow(machine,label,values,expectedCount,rowIndex,isPanel=false){
+function numericChunks(line){
+  return line
+    .trim()
+    .split(/\s+/)
+    .map(s=>s.replace(/^[,、;；]+|[,、;；]+$/g,""))
+    .filter(s=>/\d/.test(s));
+}
+
+function validMeasurement(value){
+  return /^-?\d{1,3}(?:\.\d)?$/.test(value);
+}
+
+function machineSource(machine){
+  const lines=input.value.replace(/\r/g,"").split("\n");
+  let start=-1,end=lines.length;
+  for(let i=0;i<lines.length;i++){
+    const hit=lines[i].match(MACHINE_RE);
+    if(hit&&hit[1].toUpperCase()===machine){
+      start=i;
+      break;
+    }
+  }
+  if(start<0)return null;
+  for(let i=start+1;i<lines.length;i++){
+    if(MACHINE_RE.test(lines[i])){
+      end=i;
+      break;
+    }
+  }
+  const dataRows=[];
+  const first=lines[start].replace(MACHINE_RE," ").trim();
+  if(/\d/.test(first))dataRows.push({lineIndex:start,text:first,onMachineLine:true});
+  for(let i=start+1;i<end;i++){
+    if(/\d/.test(lines[i]))dataRows.push({lineIndex:i,text:lines[i],onMachineLine:false});
+  }
+  return {lines,start,end,dataRows};
+}
+
+function updateSourceRow(machine,specIndex,values){
+  const src=machineSource(machine);
+  if(!src)return;
+  const specs=rowSpec(machine);
+  const normalized=values.map(v=>v.trim()).filter(v=>v!=="").join(" ");
+  const row=src.dataRows[specIndex];
+
+  if(row){
+    if(row.onMachineLine){
+      const nameMatch=src.lines[src.start].match(MACHINE_RE);
+      const name=nameMatch?nameMatch[0]:machine;
+      src.lines[src.start]=name+(normalized?" "+normalized:"");
+    }else{
+      src.lines[row.lineIndex]=normalized;
+    }
+  }else{
+    let insertAt=src.end;
+    if(src.dataRows.length){
+      insertAt=Math.min(src.end,src.dataRows[src.dataRows.length-1].lineIndex+1);
+    }else{
+      insertAt=src.start+1;
+    }
+    src.lines.splice(insertAt,0,normalized);
+  }
+  input.value=src.lines.join("\n");
+}
+
+function renderEditableRow(machine,specIndex,spec,row){
+  const chunks=row?numericChunks(row.text):[];
+  const malformed=chunks.map(v=>!validMeasurement(v));
+  const wrongCount=chunks.length!==spec.count;
+  const hasMalformed=malformed.some(Boolean);
+  if(!wrongCount&&!hasMalformed)return null;
+
   const wrap=document.createElement("div");
-  wrap.className="missing-row";
+  wrap.className="missing-row full-row-edit";
+  if(wrongCount)wrap.classList.add("row-problem");
 
   const head=document.createElement("div");
   head.className="missing-row-head";
-  head.textContent=label+"（"+values.length+"/"+expectedCount+"）";
+  head.textContent=spec.label+"　"+chunks.length+"/"+spec.count;
   wrap.appendChild(head);
+
+  const note=document.createElement("div");
+  note.className="row-problem-note";
+  if(hasMalformed){
+    note.textContent="赤い値が怪しいです";
+  }else if(chunks.length<spec.count){
+    note.textContent="この行で "+(spec.count-chunks.length)+"個不足";
+  }else{
+    note.textContent="この行で "+(chunks.length-spec.count)+"個多い";
+  }
+  wrap.appendChild(note);
 
   const grid=document.createElement("div");
   grid.className="missing-grid";
+  const fieldCount=Math.max(spec.count,chunks.length);
 
-  let highlighted=false;
-  for(let i=0;i<expectedCount;i++){
+  for(let i=0;i<fieldCount;i++){
     const cell=document.createElement("div");
     cell.className="missing-cell";
 
-    const lab=document.createElement("span");
-    lab.className="missing-cell-label";
-    lab.textContent=isPanel?(i===0?"上":"下"):(i+1)+"";
+    const label=document.createElement("span");
+    label.className="missing-cell-label";
+    label.textContent=specIndex===0?(i===0?"上":i===1?"下":String(i+1)):String(i+1);
 
     const field=document.createElement("input");
-    field.type="number";
-    field.step="0.1";
+    field.type="text";
     field.inputMode="decimal";
-    field.value=values[i]??"";
+    field.value=chunks[i]??"";
     field.placeholder="—";
-    field.dataset.machine=machine;
-    field.dataset.row=String(rowIndex);
     field.dataset.pos=String(i);
-    field.dataset.panel=isPanel?"1":"0";
 
-    if(i>=values.length && !highlighted){
+    const suspicious=malformed[i]===true || (i>=chunks.length && wrongCount);
+    if(suspicious){
       cell.classList.add("likely-missing");
       const tag=document.createElement("span");
       tag.className="likely-tag";
-      tag.textContent="ここでは？";
+      tag.textContent=malformed[i]===true?"ここがおかしい？":"不足";
       cell.appendChild(tag);
-      highlighted=true;
     }
 
-    field.addEventListener("change",()=>{
-      syncMissingEditorToInput();
-      renderMissingData();
-    });
-
-    cell.append(lab,field);
+    cell.append(label,field);
     grid.appendChild(cell);
   }
   wrap.appendChild(grid);
+
+  const apply=document.createElement("button");
+  apply.type="button";
+  apply.className="pressable row-apply";
+  apply.textContent="この行を反映";
+  apply.addEventListener("click",()=>{
+    const values=[...grid.querySelectorAll("input")].map(x=>x.value);
+    updateSourceRow(machine,specIndex,values);
+    pendingGenerate=false;
+    renderMissingData();
+    result.textContent=machine+" "+spec.label+" を反映しました。";
+  });
+  wrap.appendChild(apply);
+
   return wrap;
-}
-
-function rebuildMachineBlock(machine,panel,ssrRows){
-  const range=machineRange(input.value,machine);
-  if(!range)return false;
-  const rows=[];
-  if(panel.some(v=>v!==""))rows.push(panel.filter(v=>v!=="").join(" "));
-  for(const row of ssrRows){
-    if(row.some(v=>v!==""))rows.push(row.filter(v=>v!=="").join(" "));
-  }
-  const body="\n"+rows.join("\n")+"\n";
-  input.value=input.value.slice(0,range.start)+body+input.value.slice(range.end);
-  return true;
-}
-
-function syncMissingEditorToInput(){
-  const cards=[...missingList.querySelectorAll(".missing-card")];
-  for(const card of cards){
-    const machine=card.dataset.machine;
-    const panel=["",""];
-    const rows=(MACHINE_LAYOUT[machine]||[]).map(n=>Array(n).fill(""));
-    for(const field of card.querySelectorAll("input[data-machine]")){
-      const value=field.value.trim();
-      const row=Number(field.dataset.row);
-      const pos=Number(field.dataset.pos);
-      if(field.dataset.panel==="1")panel[pos]=value;
-      else if(rows[row])rows[row][pos]=value;
-    }
-    rebuildMachineBlock(machine,panel,rows);
-  }
 }
 
 function renderMissingData(){
   if(!missingBox||!missingList)return;
   missingList.replaceChildren();
+  let problemCount=0;
 
-  const issues=parseMachineBlocks(input.value)
-    .map(block=>({...block,expected:EXPECTED_COUNTS[block.machine]||0}))
-    .filter(block=>block.expected&&block.count<block.expected);
+  for(const block of parseMachineBlocks(input.value)){
+    const machine=block.machine;
+    if(!MACHINE_LAYOUT[machine])continue;
+    const src=machineSource(machine);
+    if(!src)continue;
 
-  if(!issues.length){
-    missingBox.hidden=true;
-    return;
-  }
-
-  for(const issue of issues){
+    const specs=rowSpec(machine);
     const card=document.createElement("div");
     card.className="missing-card";
-    card.dataset.machine=issue.machine;
+    card.dataset.machine=machine;
+
+    const rows=[];
+    for(let i=0;i<specs.length;i++){
+      const rendered=renderEditableRow(machine,i,specs[i],src.dataRows[i]);
+      if(rendered){
+        rows.push(rendered);
+        problemCount++;
+      }
+    }
+    if(!rows.length)continue;
 
     const title=document.createElement("div");
     title.className="missing-title";
-    title.textContent=issue.machine+"：あと"+(issue.expected-issue.count)+"個不足";
+    title.textContent=machine+"　修正が必要な行";
     card.appendChild(title);
-
-    const parsed=blockRowValues(issue);
-    const panelValues=parsed.panel;
-    const expectedRows=MACHINE_LAYOUT[issue.machine];
-
-    if(panelValues.length<2){
-      card.appendChild(renderValueRow(issue.machine,"盤内温度",panelValues,2,-1,true));
-    }
-
-    for(let rowIndex=0;rowIndex<expectedRows.length;rowIndex++){
-      const values=parsed.ssrRows[rowIndex]||[];
-      if(values.length<expectedRows[rowIndex]){
-        card.appendChild(
-          renderValueRow(
-            issue.machine,
-            "SSR "+(rowIndex+1)+"段目",
-            values,
-            expectedRows[rowIndex],
-            rowIndex,
-            false
-          )
-        );
-      }
-    }
-
+    rows.forEach(row=>card.appendChild(row));
     missingList.appendChild(card);
   }
 
-  missingBox.hidden=false;
+  missingBox.hidden=problemCount===0;
 }
+
 input.addEventListener("input",()=>{
   pendingGenerate=false;
   renderMissingData();
@@ -401,3 +445,4 @@ input.addEventListener("change",()=>{
   renderMissingData();
 });
 renderMissingData();
+
