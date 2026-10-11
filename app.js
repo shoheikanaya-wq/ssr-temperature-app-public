@@ -402,43 +402,103 @@ function machineBlockRange(machine){
   return {lines,start,end};
 }
 
-function analyzeMachineBlock(machine){
+function expectedRowSpecs(machine){
+  return [
+    {label:"盤内温度",count:2},
+    ...(MACHINE_LAYOUT[machine]||[]).map((count,i)=>({
+      label:"SSR "+(i+1)+"段目",
+      count
+    }))
+  ];
+}
+
+function machineDataRows(machine){
   const range=machineBlockRange(machine);
   if(!range)return null;
 
-  const rawLines=range.lines.slice(range.start,range.end);
-  const dataLines=[...rawLines];
-  if(dataLines.length){
-    dataLines[0]=dataLines[0].replace(MACHINE_RE," ").trim();
+  const rows=[];
+  const machineLineText=range.lines[range.start]||"";
+  const trailing=machineLineText.replace(MACHINE_RE," ").trim();
+  if(trailing && /\d/.test(trailing)){
+    rows.push({
+      lineIndex:range.start,
+      text:trailing,
+      onMachineLine:true
+    });
   }
 
-  let count=0;
-  let invalid=false;
-  for(const line of dataLines){
-    const parsed=parseMeasurementValues(line);
-    count+=parsed.values.length;
-    if(parsed.invalid)invalid=true;
+  for(let i=range.start+1;i<range.end;i++){
+    const text=range.lines[i].trim();
+    if(!text || !/\d/.test(text))continue;
+    rows.push({
+      lineIndex:i,
+      text:range.lines[i],
+      onMachineLine:false
+    });
   }
 
-  const expected=EXPECTED_COUNTS[machine]||0;
-  return {
-    machine,
-    range,
-    raw:rawLines.join("\n"),
-    count,
-    expected,
-    invalid,
-    issue:invalid || (count>0 && expected>0 && count!==expected)
-  };
+  return {range,rows};
 }
 
-function replaceMachineBlock(machine,newText){
-  const range=machineBlockRange(machine);
-  if(!range)return false;
+function analyzeMachineRows(machine){
+  const src=machineDataRows(machine);
+  if(!src)return [];
 
-  const replacement=newText.replace(/\r/g,"").split("\n");
-  range.lines.splice(range.start,range.end-range.start,...replacement);
-  input.value=range.lines.join("\n");
+  const specs=expectedRowSpecs(machine);
+  const issues=[];
+
+  for(let i=0;i<specs.length;i++){
+    const spec=specs[i];
+    const row=src.rows[i]||null;
+    const text=row?row.text:"";
+    const parsed=parseMeasurementValues(text);
+
+    const validValues=parsed.values.filter(v=>/^-?\d{1,3}\.\d$/.test(v));
+    const bad=parsed.invalid || validValues.length!==spec.count;
+
+    if(bad){
+      issues.push({
+        machine,
+        specIndex:i,
+        label:spec.label,
+        expected:spec.count,
+        row,
+        text,
+        parsedCount:validValues.length
+      });
+    }
+  }
+
+  return issues;
+}
+
+function replaceMachineRow(machine,specIndex,newText){
+  const src=machineDataRows(machine);
+  if(!src)return false;
+
+  const row=src.rows[specIndex];
+  const clean=newText.replace(/\r/g,"").trim();
+
+  if(row){
+    if(row.onMachineLine){
+      const original=src.range.lines[src.range.start];
+      const match=original.match(MACHINE_RE);
+      const name=match?match[0]:machine;
+      src.range.lines[src.range.start]=name+(clean?" "+clean:"");
+    }else{
+      src.range.lines[row.lineIndex]=clean;
+    }
+  }else{
+    let insertAt=src.range.end;
+    if(src.rows.length){
+      insertAt=Math.min(src.range.end,src.rows[src.rows.length-1].lineIndex+1);
+    }else{
+      insertAt=src.range.start+1;
+    }
+    src.range.lines.splice(insertAt,0,clean);
+  }
+
+  input.value=src.range.lines.join("\n");
   return true;
 }
 
@@ -454,45 +514,51 @@ function renderMissingData(){
     if(seen.has(machine))continue;
     seen.add(machine);
 
-    const analysis=analyzeMachineBlock(machine);
-    if(!analysis || !analysis.issue)continue;
-    total++;
+    const issues=analyzeMachineRows(machine);
+    if(!issues.length)continue;
 
-    const card=document.createElement("div");
-    card.className="stable-correction-card";
+    for(const issue of issues){
+      total++;
 
-    const title=document.createElement("div");
-    title.className="stable-correction-title";
-    title.textContent=machine+"　要修正";
-    card.appendChild(title);
+      const card=document.createElement("div");
+      card.className="stable-correction-card";
 
-    const note=document.createElement("div");
-    note.className="stable-correction-note";
-    note.textContent="Word読取元データをそのまま修正してください。";
-    card.appendChild(note);
+      const title=document.createElement("div");
+      title.className="stable-correction-title";
+      title.textContent=machine+"　"+issue.label+"　要修正";
+      card.appendChild(title);
 
-    const edit=document.createElement("textarea");
-    edit.className="stable-correction-input";
-    edit.rows=Math.max(4,analysis.raw.split("\n").length+1);
-    edit.value=analysis.raw;
-    edit.spellcheck=false;
-    card.appendChild(edit);
+      const note=document.createElement("div");
+      note.className="stable-correction-note";
+      note.textContent="このWord行だけを修正してください。";
+      card.appendChild(note);
 
-    const apply=document.createElement("button");
-    apply.type="button";
-    apply.className="pressable stable-correction-apply";
-    apply.textContent="修正を反映";
-    apply.addEventListener("click",()=>{
-      if(replaceMachineBlock(machine,edit.value)){
-        pendingGenerate=false;
-        const remaining=renderMissingData();
-        result.textContent=remaining
-          ? machine+" を反映しました。残りの要修正データを確認してください。"
-          : "修正完了。Excelを保存できます。";
-      }
-    });
-    card.appendChild(apply);
-    missingList.appendChild(card);
+      const edit=document.createElement("input");
+      edit.type="text";
+      edit.className="stable-correction-input line-correction-input";
+      edit.value=issue.text;
+      edit.placeholder="この行を修正";
+      edit.autocomplete="off";
+      edit.spellcheck=false;
+      card.appendChild(edit);
+
+      const apply=document.createElement("button");
+      apply.type="button";
+      apply.className="pressable stable-correction-apply";
+      apply.textContent="この行を反映";
+      apply.addEventListener("click",()=>{
+        if(replaceMachineRow(machine,issue.specIndex,edit.value)){
+          pendingGenerate=false;
+          const remaining=renderMissingData();
+          result.textContent=remaining
+            ? machine+" "+issue.label+" を反映しました。残りの要修正行を確認してください。"
+            : "修正完了。Excelを保存できます。";
+        }
+      });
+
+      card.appendChild(apply);
+      missingList.appendChild(card);
+    }
   }
 
   missingBox.hidden=total===0;
