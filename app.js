@@ -1,4 +1,4 @@
-const VERSION="3.24";
+const VERSION="3.25";
 const input=document.getElementById("input"),template=document.getElementById("template"),result=document.getElementById("result");
 const wordFile=document.getElementById("wordFile");
 
@@ -30,6 +30,7 @@ if(wordFile){
       input.value=text;
       pendingGenerate=false;
       refreshInputSuggestion();
+      renderMissingData();
       result.textContent="Word読み込み完了："+file.name;
     }catch(e){
       wordFile.value="";
@@ -156,18 +157,26 @@ async function build(){
   calc.setAttribute("fullCalcOnLoad","1");calc.setAttribute("forceFullCalc","1");calc.setAttribute("calcMode","auto");
   zip.file("xl/workbook.xml",ser.serializeToString(wbdoc));
   const out=await zip.generateAsync({type:"blob",mimeType:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
-  const a=document.createElement("a");a.href=URL.createObjectURL(out);a.download="SSR温測_v3.24_生成.xlsx";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),3000);
+  const a=document.createElement("a");a.href=URL.createObjectURL(out);a.download="SSR温測_v3.25_生成.xlsx";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),3000);
   result.textContent="生成完了。\n入力 "+lines.length+" 行を「スマホ入力」へ反映しました。\nExcelを開いて横・縦データを確認してください。";
  }catch(e){result.textContent="エラー: "+e.message}
 }
 let pendingGenerate=false;
 document.getElementById("generate").addEventListener("click",()=>{
-  const suspicious=findValidationIssue(input.value);
-  if(suspicious){
+  const joined=findInputSuggestion(input.value);
+  if(joined){
     pendingGenerate=true;
     refreshInputSuggestion();
-    result.textContent="怪しい入力を確認してください。候補をタップすると続けます。";
+    result.textContent="怪しい入力を確認してください。";
     assistBox?.scrollIntoView({behavior:"smooth",block:"center"});
+    return;
+  }
+  const countIssue=findCountIssue(input.value);
+  if(countIssue){
+    pendingGenerate=true;
+    renderMissingData();
+    result.textContent="不足データを手入力してください。";
+    missingBox?.scrollIntoView({behavior:"smooth",block:"center"});
     return;
   }
   pendingGenerate=false;
@@ -248,6 +257,125 @@ const assistText=document.getElementById("assistText");
 const assistChoices=document.getElementById("assistChoices");
 const assistManual=document.getElementById("assistManual");
 
+const missingBox=document.getElementById("missingBox");
+const missingList=document.getElementById("missingList");
+
+function machineSlots(machine){
+  const rows=MACHINE_LAYOUT[machine]||[];
+  const slots=[
+    {index:0,label:"盤内温度 上"},
+    {index:1,label:"盤内温度 下"}
+  ];
+  let idx=2;
+  rows.forEach((count,row)=>{
+    for(let pos=1;pos<=count;pos++){
+      slots.push({index:idx,label:"SSR "+(row+1)+"段目 "+pos+"番"});
+      idx++;
+    }
+  });
+  return slots;
+}
+
+function machineRange(text,machine){
+  const re=new RegExp(MACHINE_RE.source,"ig");
+  let m;
+  while((m=re.exec(text))){
+    if(m[1].toUpperCase()!==machine)continue;
+    const start=m.index+m[0].length;
+    const next=re.exec(text);
+    return {start,end:next?next.index:text.length};
+  }
+  return null;
+}
+
+function insertMissingValue(machine,slotIndex,value){
+  const range=machineRange(input.value,machine);
+  if(!range)return false;
+  const part=input.value.slice(range.start,range.end);
+  const nums=[...part.matchAll(/-?\d+(?:\.\d+)?/g)];
+  let at=range.end;
+  let prefix="\n";
+  if(slotIndex<nums.length){
+    at=range.start+nums[slotIndex].index;
+    prefix="";
+  }
+  input.value=input.value.slice(0,at)+prefix+value+" "+input.value.slice(at);
+  return true;
+}
+
+function renderMissingData(){
+  if(!missingBox||!missingList)return;
+  missingList.replaceChildren();
+  const issues=parseMachineBlocks(input.value)
+    .map(block=>({...block,expected:EXPECTED_COUNTS[block.machine]||0}))
+    .filter(block=>block.expected&&block.count<block.expected);
+
+  if(!issues.length){
+    missingBox.hidden=true;
+    return;
+  }
+
+  for(const issue of issues){
+    const card=document.createElement("div");
+    card.className="missing-card";
+
+    const title=document.createElement("div");
+    title.className="missing-title";
+    title.textContent=issue.machine+"：あと"+(issue.expected-issue.count)+"個不足";
+    card.appendChild(title);
+
+    const rows=MACHINE_LAYOUT[issue.machine];
+    const detail=document.createElement("div");
+    detail.className="missing-detail";
+    detail.textContent="盤内温度2個 / SSR "+rows.map((n,i)=>(i+1)+"段目 "+n+"個").join(" / ");
+    card.appendChild(detail);
+
+    const entry=document.createElement("div");
+    entry.className="missing-entry";
+
+    const select=document.createElement("select");
+    select.className="missing-position";
+    for(const slot of machineSlots(issue.machine)){
+      const o=document.createElement("option");
+      o.value=String(slot.index);
+      o.textContent=slot.label;
+      if(slot.index===Math.min(issue.count,issue.expected-1))o.selected=true;
+      select.appendChild(o);
+    }
+
+    const field=document.createElement("input");
+    field.type="number";
+    field.step="0.1";
+    field.inputMode="decimal";
+    field.placeholder="不足値";
+
+    const add=document.createElement("button");
+    add.type="button";
+    add.className="pressable missing-add";
+    add.textContent="追加";
+    add.addEventListener("click",()=>{
+      const value=field.value.trim();
+      if(!value){field.focus();return;}
+      if(!insertMissingValue(issue.machine,Number(select.value),value))return;
+      refreshInputSuggestion();
+      renderMissingData();
+      const still=findCountIssue(input.value);
+      if(pendingGenerate&&!still&&!findInputSuggestion(input.value)){
+        pendingGenerate=false;
+        result.textContent="確認完了。Excelを生成します…";
+        build();
+      }else{
+        result.textContent=issue.machine+" に "+value+" を追加しました。";
+      }
+    });
+
+    entry.append(select,field,add);
+    card.appendChild(entry);
+    missingList.appendChild(card);
+  }
+  missingBox.hidden=false;
+}
+
 function findInputSuggestion(text){
   const chunks=text.split(/\s+/).filter(Boolean);
   for(const chunk of chunks){
@@ -277,7 +405,7 @@ function findInputSuggestion(text){
 
 function refreshInputSuggestion(){
   if(!assistBox||!assistText||!assistChoices)return;
-  const s=findValidationIssue(input.value);
+  const s=findInputSuggestion(input.value);
   assistChoices.replaceChildren();
   if(!s){
     assistBox.hidden=true;
@@ -292,7 +420,7 @@ function refreshInputSuggestion(){
     b.addEventListener("click",()=>{
       input.value=input.value.replace(s.chunk,choice);
       input.focus();
-      const next=findValidationIssue(input.value);
+      const next=findInputSuggestion(input.value);
       refreshInputSuggestion();
       if(pendingGenerate && !next){
         pendingGenerate=false;
@@ -316,10 +444,12 @@ function refreshInputSuggestion(){
 input.addEventListener("input",()=>{
   pendingGenerate=false;
   refreshInputSuggestion();
+  renderMissingData();
 });
 input.addEventListener("change",()=>{
   pendingGenerate=false;
   refreshInputSuggestion();
+  renderMissingData();
 });
 if(assistManual)assistManual.addEventListener("click",()=>{
   pendingGenerate=false;
@@ -328,3 +458,4 @@ if(assistManual)assistManual.addEventListener("click",()=>{
   result.textContent="候補を使わず手入力で修正してください。";
 });
 refreshInputSuggestion();
+renderMissingData();
