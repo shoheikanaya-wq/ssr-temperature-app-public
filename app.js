@@ -49,7 +49,19 @@ async function build(){
   result.textContent="生成完了。\n入力 "+lines.length+" 行を「スマホ入力」へ反映しました。\nExcelを開いて横・縦データを確認してください。";
  }catch(e){result.textContent="エラー: "+e.message}
 }
-document.getElementById("generate").addEventListener("click",build);
+let pendingGenerate=false;
+document.getElementById("generate").addEventListener("click",()=>{
+  const suspicious=findInputSuggestion(input.value);
+  if(suspicious){
+    pendingGenerate=true;
+    refreshInputSuggestion();
+    result.textContent="怪しい入力を確認してください。候補をタップすると続けます。";
+    assistBox?.scrollIntoView({behavior:"smooth",block:"center"});
+    return;
+  }
+  pendingGenerate=false;
+  build();
+});
 if("serviceWorker" in navigator){
   let refreshing=false;
   const updateBox=document.getElementById("updateBox");
@@ -167,17 +179,34 @@ function refreshInputSuggestion(){
     b.addEventListener("click",()=>{
       input.value=input.value.replace(s.token,choice);
       input.focus();
+      const next=findInputSuggestion(input.value);
       refreshInputSuggestion();
+      if(pendingGenerate && !next){
+        pendingGenerate=false;
+        result.textContent="確認完了。Excelを生成します…";
+        build();
+      }else if(pendingGenerate && next){
+        result.textContent="次の怪しい入力を確認してください。";
+        assistBox?.scrollIntoView({behavior:"smooth",block:"center"});
+      }
     });
     assistChoices.appendChild(b);
   }
   assistBox.hidden=false;
 }
 
-input.addEventListener("input",refreshInputSuggestion);
-input.addEventListener("change",refreshInputSuggestion);
+input.addEventListener("input",()=>{
+  pendingGenerate=false;
+  refreshInputSuggestion();
+});
+input.addEventListener("change",()=>{
+  pendingGenerate=false;
+  refreshInputSuggestion();
+});
 if(assistManual)assistManual.addEventListener("click",()=>{
+  pendingGenerate=false;
   assistBox.hidden=true;
   input.focus();
+  result.textContent="候補を使わず手入力で修正してください。";
 });
 refreshInputSuggestion();
