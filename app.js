@@ -123,9 +123,11 @@ async function build(){
   const text=input.value.replace(/\r/g,"").trim();
   if(!text)throw new Error("Word測定データを貼り付けてください。");
   result.textContent="生成中…";
-  const templateResponse=await fetch("./SSR温測テンプレ.xlsx",{cache:"no-store"});
-  if(!templateResponse.ok)throw new Error("標準ひな形を読み込めませんでした。");
-  const zip=await JSZip.loadAsync(await templateResponse.arrayBuffer());
+  if(typeof SSR_TEMPLATE_B64!=="string"||!SSR_TEMPLATE_B64)throw new Error("標準ひな形を読み込めませんでした。");
+  const binary=atob(SSR_TEMPLATE_B64);
+  const bytes=new Uint8Array(binary.length);
+  for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
+  const zip=await JSZip.loadAsync(bytes.buffer);
   const parser=new DOMParser(),ser=new XMLSerializer();
   const wbxml=await zip.file("xl/workbook.xml").async("string");
   const wbdoc=parser.parseFromString(wbxml,"application/xml");
