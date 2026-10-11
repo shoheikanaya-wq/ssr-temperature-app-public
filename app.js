@@ -245,10 +245,11 @@ async function build(){
   result.textContent="生成中…";
   if(typeof SSR_TEMPLATE_B64!=="string"||!SSR_TEMPLATE_B64)throw new Error("標準ひな形を読み込めませんでした。");
 
-  const binary=atob(SSR_TEMPLATE_B64);
-  const bytes=new Uint8Array(binary.length);
-  for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
-  const zip=await JSZip.loadAsync(bytes.buffer);
+  // JSZip decodes the embedded Base64 template directly, avoiding browser atob failures.
+  const templateBase64=SSR_TEMPLATE_B64.replace(/\s/g,"");
+  if(!/^[A-Za-z0-9+/]*={0,2}$/.test(templateBase64)||templateBase64.length%4!==0)
+    throw new Error("Excel標準ひな形のデータ形式が不正です。アプリを更新してください。");
+  const zip=await JSZip.loadAsync(templateBase64,{base64:true});
 
   const parser=new DOMParser(),ser=new XMLSerializer();
   const wbxml=await zip.file("xl/workbook.xml").async("string");
