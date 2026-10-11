@@ -2,6 +2,73 @@ const VERSION="3.23";
 const input=document.getElementById("input"),template=document.getElementById("template"),result=document.getElementById("result");
 const esc=s=>s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 function colA(row){return "A"+row}
+const EXPECTED_COUNTS={
+  "FM81":22,
+  "FM83-1":37,
+  "FM83-2":14,
+  "FM84":30,
+  "FM96":20,
+  "FM97":20,
+  "FM19":32,
+  "FM22":32,
+  "FM01":22,
+  "FM07":34,
+  "FE01":20,
+  "FE04":24,
+  "MM18":4
+};
+const MACHINE_RE=/(FM83-1|FM83-2|FM81|FM84|FM96|FM97|FM19|FM22|FM01|FM07|FE01|FE04|MM18)/i;
+
+function countNumbers(text){
+  const m=text.match(/-?\d+(?:\.\d+)?/g);
+  return m?m.length:0;
+}
+
+function parseMachineBlocks(text){
+  const blocks=[];
+  let current=null;
+  for(const raw of text.replace(/\r/g,"").split("\n")){
+    const hit=raw.match(MACHINE_RE);
+    if(hit){
+      if(current)blocks.push(current);
+      const machine=hit[1].toUpperCase();
+      const after=raw.replace(hit[0]," ");
+      current={machine,text:after,count:countNumbers(after)};
+    }else if(current){
+      current.text+="\n"+raw;
+      current.count+=countNumbers(raw);
+    }
+  }
+  if(current)blocks.push(current);
+  return blocks;
+}
+
+function findCountIssue(text){
+  for(const block of parseMachineBlocks(text)){
+    const expected=EXPECTED_COUNTS[block.machine];
+    if(!expected)continue;
+    if(block.count!==expected){
+      const diff=expected-block.count;
+      return {
+        type:"count",
+        machine:block.machine,
+        expected,
+        actual:block.count,
+        token:null,
+        choices:[],
+        message:diff>0
+          ? block.machine+"：必要 "+expected+"値に対して "+block.count+"値です。あと"+diff+"個不足しています。"
+          : block.machine+"：必要 "+expected+"値に対して "+block.count+"値です。"+Math.abs(diff)+"個多いので確認してください。"
+      };
+    }
+  }
+  return null;
+}
+
+function findValidationIssue(text){
+  return findInputSuggestion(text)||findCountIssue(text);
+}
+
 async function build(){
  try{
   const text=input.value.replace(/\r/g,"").trim();
@@ -51,7 +118,7 @@ async function build(){
 }
 let pendingGenerate=false;
 document.getElementById("generate").addEventListener("click",()=>{
-  const suspicious=findInputSuggestion(input.value);
+  const suspicious=findValidationIssue(input.value);
   if(suspicious){
     pendingGenerate=true;
     refreshInputSuggestion();
@@ -164,14 +231,14 @@ function findInputSuggestion(text){
 
 function refreshInputSuggestion(){
   if(!assistBox||!assistText||!assistChoices)return;
-  const s=findInputSuggestion(input.value);
+  const s=findValidationIssue(input.value);
   assistChoices.replaceChildren();
   if(!s){
     assistBox.hidden=true;
     return;
   }
   assistText.textContent=s.message;
-  for(const choice of s.choices){
+  for(const choice of s.choices||[]){
     const b=document.createElement("button");
     b.type="button";
     b.className="pressable assist-choice";
@@ -179,7 +246,7 @@ function refreshInputSuggestion(){
     b.addEventListener("click",()=>{
       input.value=input.value.replace(s.token,choice);
       input.focus();
-      const next=findInputSuggestion(input.value);
+      const next=findValidationIssue(input.value);
       refreshInputSuggestion();
       if(pendingGenerate && !next){
         pendingGenerate=false;
@@ -191,6 +258,11 @@ function refreshInputSuggestion(){
       }
     });
     assistChoices.appendChild(b);
+  }
+  if(s.type==="count" && (!s.choices || !s.choices.length)){
+    assistManual.textContent="手入力で確認";
+  }else if(assistManual){
+    assistManual.textContent="どれでもない";
   }
   assistBox.hidden=false;
 }
