@@ -108,3 +108,9 @@
 .missing-mark{text-decoration:none}
 .raw-row-input{width:100%;min-height:48px;margin-top:8px;padding:10px 12px;border:1px solid #9fa8b3;border-radius:10px;font-size:16px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
 .raw-row-apply{width:100%;margin-top:8px}
+
+.issue-editor{display:grid;grid-template-columns:auto minmax(140px,1fr) auto;gap:8px;align-items:center;margin-top:8px;padding:8px;border:2px solid #c62828;border-radius:10px;background:#fff4f4}
+.issue-label{font-size:13px;font-weight:900;color:#c62828}
+.issue-input{min-height:46px;width:100%;padding:9px 11px;border:1px solid #c62828;border-radius:8px;font-size:16px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;background:#fff}
+.issue-apply{min-height:46px;padding:9px 14px}
+@media (max-width:560px){.issue-editor{grid-template-columns:1fr}.issue-apply{width:100%}}

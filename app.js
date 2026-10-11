@@ -1,4 +1,4 @@
-const VERSION="3.28";
+const VERSION="3.29";
 const input=document.getElementById("input"),template=document.getElementById("template"),result=document.getElementById("result");
 const wordFile=document.getElementById("wordFile");
 
@@ -158,7 +158,7 @@ async function build(){
   calc.setAttribute("fullCalcOnLoad","1");calc.setAttribute("forceFullCalc","1");calc.setAttribute("calcMode","auto");
   zip.file("xl/workbook.xml",ser.serializeToString(wbdoc));
   const out=await zip.generateAsync({type:"blob",mimeType:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
-  const a=document.createElement("a");a.href=URL.createObjectURL(out);a.download="SSR温測_v3.28_生成.xlsx";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),3000);
+  const a=document.createElement("a");a.href=URL.createObjectURL(out);a.download="SSR温測_v3.29_生成.xlsx";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),3000);
   result.textContent="生成完了。\n入力 "+lines.length+" 行を「スマホ入力」へ反映しました。\nExcelを開いて横・縦データを確認してください。";
  }catch(e){result.textContent="エラー: "+e.message}
 }
@@ -279,23 +279,59 @@ function splitRowValues(line){
   return line.trim().split(/\s+/).filter(Boolean);
 }
 
-function suspiciousParts(line,expectedCount){
+function analyzeRow(line,expectedCount){
   const parts=splitRowValues(line);
-  const bad=new Set();
+  const malformed=[];
   parts.forEach((p,i)=>{
-    if(!/^-?\d{1,3}(?:\.\d)?$/.test(p))bad.add(i);
+    if(!/^-?\d{1,3}(?:\.\d)?$/.test(p))malformed.push(i);
   });
-  if(parts.length<expectedCount && parts.length)bad.add(parts.length-1);
-  if(parts.length>expectedCount){
-    for(let i=expectedCount;i<parts.length;i++)bad.add(i);
+
+  const issues=[];
+  for(const i of malformed){
+    issues.push({
+      kind:"replace",
+      index:i,
+      label:"ここがおかしい？",
+      current:parts[i]||"",
+      placeholder:"この部分だけ修正"
+    });
   }
-  return {parts,bad};
+
+  if(parts.length<expectedCount && !malformed.length){
+    const missing=expectedCount-parts.length;
+    const anchor=Math.max(0,parts.length-1);
+    issues.push({
+      kind:parts.length?"replace":"insert",
+      index:anchor,
+      label:"ここでは？",
+      current:parts[anchor]||"",
+      placeholder:missing===1?"不足値を含めて修正":"不足"+missing+"個を含めて修正"
+    });
+  }
+
+  if(parts.length>expectedCount && !malformed.length){
+    for(let i=expectedCount;i<parts.length;i++){
+      issues.push({
+        kind:"replace",
+        index:i,
+        label:"余分？",
+        current:parts[i],
+        placeholder:"不要なら空欄"
+      });
+    }
+  }
+
+  return {parts,issues};
 }
 
 function renderHighlightedLine(line,expectedCount){
-  const {parts,bad}=suspiciousParts(line,expectedCount);
+  const {parts,issues}=analyzeRow(line,expectedCount);
+  const badIndexes=new Map();
+  issues.forEach(issue=>badIndexes.set(issue.index,issue.label));
+
   const preview=document.createElement("div");
   preview.className="raw-line-preview";
+
   if(!parts.length){
     const s=document.createElement("span");
     s.className="bad-part";
@@ -303,13 +339,18 @@ function renderHighlightedLine(line,expectedCount){
     preview.appendChild(s);
     return preview;
   }
+
   parts.forEach((p,i)=>{
     if(i)preview.append(" ");
     const span=document.createElement("span");
     span.textContent=p;
-    if(bad.has(i))span.className="bad-part";
+    if(badIndexes.has(i)){
+      span.className="bad-part";
+      span.title=badIndexes.get(i);
+    }
     preview.appendChild(span);
   });
+
   if(parts.length<expectedCount){
     preview.append(" ");
     const miss=document.createElement("span");
@@ -317,22 +358,31 @@ function renderHighlightedLine(line,expectedCount){
     miss.textContent="← "+(expectedCount-parts.length)+"個不足";
     preview.appendChild(miss);
   }
+
   return preview;
 }
 
-function replaceSourceLine(machine,rowIndex,newText){
+function replaceIssueInSource(machine,rowIndex,issueIndex,newText){
   const src=sourceBlock(machine);
   if(!src)return false;
   const row=src.rows[rowIndex];
-  if(row){
-    if(row.onMachineLine){
-      const name=(src.lines[src.machineLine].match(MACHINE_RE)||[machine])[0];
-      src.lines[src.machineLine]=name+(newText.trim()?" "+newText.trim():"");
-    }else{
-      src.lines[row.lineIndex]=newText.trim();
-    }
+  if(!row)return false;
+
+  const parts=splitRowValues(row.text);
+  const replacement=newText.trim().split(/\s+/).filter(Boolean);
+
+  if(issueIndex<parts.length){
+    parts.splice(issueIndex,1,...replacement);
   }else{
-    src.lines.splice(src.end,0,newText.trim());
+    parts.push(...replacement);
+  }
+
+  const rebuilt=parts.join(" ");
+  if(row.onMachineLine){
+    const name=(src.lines[src.machineLine].match(MACHINE_RE)||[machine])[0];
+    src.lines[src.machineLine]=name+(rebuilt?" "+rebuilt:"");
+  }else{
+    src.lines[row.lineIndex]=rebuilt;
   }
   input.value=src.lines.join("\n");
   return true;
@@ -350,26 +400,25 @@ function renderMissingData(){
     if(!src)continue;
     const specs=expectedRows(machine);
 
-    const problemRows=[];
+    const rowsToShow=[];
     for(let i=0;i<specs.length;i++){
       const row=src.rows[i]||{text:"",lineIndex:null,onMachineLine:false};
-      const count=countNumbers(row.text);
-      const parts=splitRowValues(row.text);
-      const malformed=parts.some(p=>!/^[-]?\d{1,3}(?:\.\d)?$/.test(p));
-      if(count!==specs[i].count||malformed){
-        problemRows.push({index:i,row,spec:specs[i]});
+      const analysis=analyzeRow(row.text,specs[i].count);
+      if(analysis.issues.length){
+        rowsToShow.push({index:i,row,spec:specs[i],analysis});
       }
     }
-    if(!problemRows.length)continue;
+    if(!rowsToShow.length)continue;
 
     const card=document.createElement("div");
     card.className="missing-card";
+
     const title=document.createElement("div");
     title.className="missing-title";
     title.textContent=machine+"　修正箇所";
     card.appendChild(title);
 
-    for(const item of problemRows){
+    for(const item of rowsToShow){
       total++;
       const wrap=document.createElement("div");
       wrap.className="raw-row-editor";
@@ -381,29 +430,42 @@ function renderMissingData(){
 
       wrap.appendChild(renderHighlightedLine(item.row.text,item.spec.count));
 
-      const edit=document.createElement("input");
-      edit.type="text";
-      edit.className="raw-row-input";
-      edit.value=item.row.text;
-      edit.placeholder="この行をそのまま修正";
-      edit.autocomplete="off";
-      edit.spellcheck=false;
-      wrap.appendChild(edit);
+      for(const issue of item.analysis.issues){
+        const correction=document.createElement("div");
+        correction.className="issue-editor";
 
-      const apply=document.createElement("button");
-      apply.type="button";
-      apply.className="pressable raw-row-apply";
-      apply.textContent="この行を反映";
-      apply.addEventListener("click",()=>{
-        if(replaceSourceLine(machine,item.index,edit.value)){
-          pendingGenerate=false;
-          renderMissingData();
-          result.textContent=machine+" "+item.spec.label+" を修正しました。";
-        }
-      });
-      wrap.appendChild(apply);
+        const label=document.createElement("div");
+        label.className="issue-label";
+        label.textContent=issue.label;
+        correction.appendChild(label);
+
+        const edit=document.createElement("input");
+        edit.type="text";
+        edit.className="issue-input";
+        edit.value=issue.current;
+        edit.placeholder=issue.placeholder;
+        edit.autocomplete="off";
+        edit.spellcheck=false;
+        correction.appendChild(edit);
+
+        const apply=document.createElement("button");
+        apply.type="button";
+        apply.className="pressable issue-apply";
+        apply.textContent="修正を反映";
+        apply.addEventListener("click",()=>{
+          if(replaceIssueInSource(machine,item.index,issue.index,edit.value)){
+            pendingGenerate=false;
+            renderMissingData();
+            result.textContent=machine+" "+item.spec.label+" の要修正箇所を反映しました。";
+          }
+        });
+        correction.appendChild(apply);
+        wrap.appendChild(correction);
+      }
+
       card.appendChild(wrap);
     }
+
     missingList.appendChild(card);
   }
 
