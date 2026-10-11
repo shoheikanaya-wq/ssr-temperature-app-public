@@ -100,3 +100,11 @@
 .full-row-edit .missing-cell input{font-weight:700}
 .full-row-edit .missing-cell.likely-missing{border:2px solid #c62828;background:#fff0f0}
 .full-row-edit .missing-cell.likely-missing input{border:2px solid #c62828;background:#fff}
+
+.raw-row-editor{margin-top:10px;padding:10px;border:1px solid #d9dde3;border-radius:12px;background:#fff}
+.raw-row-head{font-weight:800;margin-bottom:6px}
+.raw-line-preview{padding:8px 10px;border-radius:8px;background:#f7f8fa;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;white-space:pre-wrap;word-break:break-word;line-height:1.6}
+.bad-part{color:#c62828;font-weight:900;text-decoration:underline;text-decoration-thickness:2px}
+.missing-mark{text-decoration:none}
+.raw-row-input{width:100%;min-height:48px;margin-top:8px;padding:10px 12px;border:1px solid #9fa8b3;border-radius:10px;font-size:16px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
+.raw-row-apply{width:100%;margin-top:8px}
