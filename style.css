@@ -137,3 +137,5 @@
 .distribution-status{margin:10px 0;padding:9px 10px;border-radius:9px;background:#fff4dd;color:#744b00;font-weight:700;line-height:1.5}
 .distribution-qr{display:block;width:220px;height:220px;max-width:75vw;object-fit:contain;margin:12px auto;background:#fff}
 .distribution-note{margin:8px 0 0;color:#475569;font-size:14px;line-height:1.55}
+
+.distribution-hold{display:flex;align-items:center;justify-content:center;width:220px;height:220px;max-width:75vw;margin:12px auto;border:2px dashed #94a3b8;border-radius:14px;background:#f1f5f9;color:#475569;font-size:20px;font-weight:900;text-align:center}
