@@ -37,6 +37,13 @@ jobs:
           name: SSR-temperature-apk
           path: SSR-temperature.apk
 
+      - name: Remove old debug release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete android-latest --yes || true
+          git push origin :refs/tags/android-latest || true
+
       - name: Hold public release
         run: |
           echo "Debug APK is build-only and must not be published for third-party distribution."
