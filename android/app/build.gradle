@@ -1,0 +1,41 @@
+plugins {
+  id 'com.android.application'
+}
+
+android {
+  namespace 'jp.shoheikanaya.ssrtemperature'
+  compileSdk 35
+
+  defaultConfig {
+    applicationId 'jp.shoheikanaya.ssrtemperature'
+    minSdk 26
+    targetSdk 35
+    versionCode 1
+    versionName '1.0'
+  }
+
+  signingConfigs {
+    release {
+      if (System.getenv("ANDROID_KEYSTORE_PATH")) {
+        storeFile file(System.getenv("ANDROID_KEYSTORE_PATH"))
+        storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD")
+        keyAlias "ssr_release"
+        keyPassword System.getenv("ANDROID_KEYSTORE_PASSWORD")
+      }
+    }
+  }
+
+  buildTypes {
+    release {
+      minifyEnabled true
+      shrinkResources true
+      proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+      if (System.getenv("ANDROID_KEYSTORE_PATH")) signingConfig signingConfigs.release
+    }
+  }
+}
+
+dependencies {
+  implementation 'androidx.appcompat:appcompat:1.7.0'
+  implementation 'androidx.webkit:webkit:1.12.1'
+}
