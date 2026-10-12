@@ -37,12 +37,8 @@ jobs:
           name: SSR-temperature-apk
           path: SSR-temperature.apk
 
-      - name: Publish latest release
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Hold public release
         run: |
-          gh release delete android-latest --yes || true
-          git push origin :refs/tags/android-latest || true
-          gh release create android-latest SSR-temperature.apk --title "SSR温測 Android" --notes "Android配布用APK。測定・Word・Excel処理は変更していません。APKはHTTPS上のSSR温測を専用アイコンから開く配布用シェルです。" --latest
+          echo "Debug APK is build-only and must not be published for third-party distribution."
 
 # secret-refresh-trigger
