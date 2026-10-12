@@ -1,0 +1,9 @@
+<resources>
+  <style name="Theme.SSRTemperature" parent="Theme.AppCompat.Light.NoActionBar">
+    <item name="android:fontFamily">sans</item>
+    <item name="android:colorAccent">@color/ssr_blue</item>
+    <item name="android:navigationBarColor">@color/white</item>
+    <item name="android:statusBarColor">@color/white</item>
+    <item name="android:windowLightStatusBar">true</item>
+  </style>
+</resources>
