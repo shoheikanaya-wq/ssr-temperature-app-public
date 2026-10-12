@@ -126,3 +126,14 @@
 .stable-correction-apply{width:100%;margin-top:8px}
 
 .line-correction-input{min-height:48px;height:48px;resize:none}
+
+/* Distribution UI only. Measurement workflow remains unchanged. */
+#installBox{display:none!important}
+.distribution-entry{margin-top:16px;text-align:center}
+.distribution-link{border:0;background:transparent;color:#165578;font-size:14px;font-weight:800;text-decoration:underline;text-underline-offset:3px;padding:10px;cursor:pointer}
+.distribution-panel{margin:10px auto 0;max-width:420px;padding:14px;border:1px solid #cfd6df;border-radius:12px;background:#f8fafc;text-align:left}
+.distribution-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.distribution-close{border:0;background:transparent;font-size:28px;line-height:1;cursor:pointer;color:#475569}
+.distribution-status{margin:10px 0;padding:9px 10px;border-radius:9px;background:#fff4dd;color:#744b00;font-weight:700;line-height:1.5}
+.distribution-qr{display:block;width:220px;height:220px;max-width:75vw;object-fit:contain;margin:12px auto;background:#fff}
+.distribution-note{margin:8px 0 0;color:#475569;font-size:14px;line-height:1.55}
