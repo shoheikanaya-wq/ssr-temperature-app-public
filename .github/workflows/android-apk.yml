@@ -25,27 +25,23 @@ jobs:
         with:
           gradle-version: '8.10.2'
 
-      - name: Build installable Android APK
+      - name: Build unsigned release APK
         working-directory: android
-        run: gradle :app:assembleDebug
+        run: gradle :app:assembleRelease
 
-      - name: Prepare APK
-        run: cp android/app/build/outputs/apk/debug/app-debug.apk SSR-temperature.apk
+      - name: Prepare unsigned release APK
+        run: |
+          APK="$(find android/app/build/outputs/apk/release -maxdepth 1 -type f -name '*.apk' | head -n 1)"
+          test -n "$APK"
+          cp "$APK" SSR-temperature-unsigned.apk
 
       - uses: actions/upload-artifact@v4
         with:
-          name: SSR-temperature-apk
-          path: SSR-temperature.apk
-
-      - name: Remove old debug release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release delete android-latest --yes || true
-          git push origin :refs/tags/android-latest || true
+          name: SSR-temperature-unsigned-release
+          path: SSR-temperature-unsigned.apk
 
       - name: Hold public release
         run: |
-          echo "Debug APK is build-only and must not be published for third-party distribution."
+          echo "Unsigned release APK is artifact-only. Public distribution remains disabled until local signing is complete."
 
 # secret-refresh-trigger
