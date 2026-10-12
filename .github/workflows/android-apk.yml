@@ -61,3 +61,5 @@ jobs:
           gh release delete android-latest --yes || true
           git push origin :refs/tags/android-latest || true
           gh release create android-latest SSR-temperature.apk --title "SSR温測 Android" --notes "Android配布用APK。SSR本体の測定・Excel処理は変更していません。" --latest
+
+# secret-refresh-trigger
