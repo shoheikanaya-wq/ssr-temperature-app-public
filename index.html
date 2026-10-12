@@ -53,8 +53,21 @@
   </div>
 </section>
 <pre id="result" class="result"></pre>
+<section class="distribution-entry">
+  <button id="distributionToggle" class="distribution-link" type="button" aria-expanded="false" aria-controls="distributionPanel">配布用はこちら</button>
+  <section id="distributionPanel" class="distribution-panel" hidden>
+    <div class="distribution-head">
+      <strong>SSR温測 Android配布</strong>
+      <button id="distributionClose" class="distribution-close" type="button" aria-label="配布用QRを閉じる">×</button>
+    </div>
+    <p class="distribution-status">署名済みAPKを準備中です。公開完了後、このQRからAndroidへインストールできます。</p>
+    <img class="distribution-qr" src="android-distribution-qr.png" alt="SSR温測 Android APK配布QR">
+    <p class="distribution-note">Webの「ホーム画面に追加」は使いません。APKをインストールすると「SSR温測」アイコンから起動できます。</p>
+  </section>
+</section>
 </main>
 <script src="template-data.js"></script>
 <script src="app.js"></script>
+<script src="distribution.js"></script>
 </body>
 </html>
