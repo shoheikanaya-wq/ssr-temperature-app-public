@@ -1,73 +1,597 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#ffffff">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests">
-<link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="icon-180.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="SSR温測">
-<title>SSR温測</title>
-<script src="jszip.min.js"></script>
-<link rel="stylesheet" href="style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#1a73e8">
+    <link rel="manifest" href="manifest.json">
+    <title>SSR温測 v1.6 ひな形レイアウト版</title>
+    <script src="https://cdn.jsdelivr.net/npm/exceljs@4.3.0/dist/exceljs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: "Meiryo", "Hiragino Kaku Gothic ProN", sans-serif; margin: 0; padding: 10px; background: #e9eef5; color: #222; }
+        .app-wrap { max-width: 1200px; margin: 0 auto; background: #fff; padding: 14px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.08); }
+
+        /* 上部バー */
+        .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; padding-bottom: 10px; margin-bottom: 10px; border-bottom: 2px solid #1a73e8; }
+        .title-box { display: flex; align-items: center; gap: 8px; }
+        h1 { font-size: 1.25rem; margin: 0; color: #1a73e8; }
+        .badge { background: #34a853; color: #fff; font-size: 0.78rem; padding: 4px 8px; border-radius: 4px; font-weight: bold; }
+        .actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+        .btn-action { background: #e8f0fe; color: #1a73e8; border: 1px dashed #1a73e8; padding: 8px 12px; border-radius: 6px; font-size: 0.85rem; font-weight: bold; cursor: pointer; }
+        .btn-clear { background: #5f6368; color: #fff; border: none; padding: 8px 12px; border-radius: 6px; font-size: 0.85rem; font-weight: bold; cursor: pointer; }
+        .btn-export { background: #1a73e8; color: #fff; border: none; padding: 9px 18px; border-radius: 6px; font-size: 0.95rem; font-weight: bold; cursor: pointer; }
+        .btn-export:hover { background: #1557b0; }
+        input[type="file"] { display: none; }
+
+        /* シート最上部（タイトル・日付・構内温度） */
+        .sheet-header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; background: #f3f6fb; border: 1px solid #8fa3bf; padding: 10px 12px; border-radius: 6px; margin-bottom: 12px; }
+        .sheet-title { font-weight: bold; font-size: 1.05rem; color: #111; }
+        .header-inputs { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; font-size: 0.9rem; }
+        .date-input { padding: 5px 8px; border: 1px solid #666; border-radius: 4px; font-size: 0.95rem; width: 155px; background: #fffde7; font-weight: bold; }
+        .kounai-group { display: flex; align-items: center; gap: 5px; background: #fff; padding: 4px 8px; border: 1px solid #8fa3bf; border-radius: 4px; font-weight: bold; }
+        .kounai-input { width: 56px; padding: 4px; border: 1px solid #777; border-radius: 3px; text-align: center; font-size: 0.95rem; background: #fffde7; font-weight: bold; }
+
+        /* 機台ジャンプボタン */
+        .quick-nav { display: flex; gap: 5px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 10px; }
+        .quick-nav a { flex: 0 0 auto; background: #f1f3f4; color: #333; text-decoration: none; font-size: 0.8rem; font-weight: bold; padding: 5px 10px; border-radius: 14px; border: 1px solid #ccc; }
+        .quick-nav a:hover { background: #1a73e8; color: #fff; }
+
+        /* Excelひな形レイアウト本体 */
+        .sheet-grid { display: flex; flex-direction: column; gap: 14px; }
+        .side-by-side { display: grid; grid-template-columns: 1fr; gap: 14px; }
+        @media (min-width: 960px) {
+            .side-by-side { grid-template-columns: 38fr 62fr; }
+        }
+
+        .panel-card { border: 2px solid #8fa3bf; border-radius: 6px; background: #fff; overflow: hidden; }
+        .panel-header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; background: #dfe7f2; padding: 7px 12px; border-bottom: 1px solid #8fa3bf; font-size: 0.9rem; font-weight: bold; }
+        .panel-name { font-size: 1.05rem; color: #0d47a1; min-width: 65px; }
+        .temp-input { width: 64px; padding: 4px; border: 1px solid #555; border-radius: 3px; text-align: center; font-size: 0.95rem; background: #fffde7; font-weight: bold; }
+
+        .table-scroll { overflow-x: auto; padding: 8px; }
+        table.ssr-table { border-collapse: collapse; margin-bottom: 8px; }
+        table.ssr-table:last-child { margin-bottom: 0; }
+        table.ssr-table th { background: #f1f3f5; border: 1px solid #444; padding: 4px 5px; font-size: 0.75rem; font-weight: bold; text-align: center; min-width: 58px; white-space: nowrap; color: #111; }
+        table.ssr-table td { border: 1px solid #444; padding: 0; min-width: 58px; height: 34px; background: #fffde7; }
+        table.ssr-table th.empty-cell, table.ssr-table td.empty-cell { border: none; background: transparent; min-width: 58px; }
+        .ssr-input { width: 100%; height: 100%; min-height: 32px; border: none; text-align: center; font-size: 0.95rem; font-family: monospace; font-weight: bold; padding: 2px; background: transparent; color: #000; }
+        .ssr-input:focus, .temp-input:focus, .kounai-input:focus, .date-input:focus { background: #e8f0fe; outline: 2px solid #1a73e8; }
+        .ssr-input.filled { background: #eaf7ea; }
+        .ssr-input.high-temp { background: #fce8e6; color: #c5221f; }
+
+        /* 下部保存ボタン＆QR配布エリア */
+        .bottom-export-wrap { margin-top: 16px; }
+        .footer-distribute { margin-top: 18px; background: #f8f9fa; border: 1px solid #dadce0; border-radius: 8px; padding: 14px; text-align: center; }
+        .footer-title { font-weight: bold; font-size: 0.95rem; color: #1a73e8; margin-bottom: 6px; }
+        .footer-qr-row { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; justify-content: center; margin-top: 8px; }
+        .qr-card { background: #fff; padding: 8px 12px; border: 1px solid #ccc; border-radius: 6px; text-align: center; }
+        .qr-label { font-size: 0.78rem; font-weight: bold; color: #333; margin-bottom: 4px; }
+        .footer-actions { display: flex; flex-direction: column; gap: 8px; min-width: 210px; }
+    </style>
 </head>
 <body>
-<main>
-<h1>SSR温測 <small>v1.5</small></h1>
-<p class="intro-copy">Word測定データを貼り付け、基準Excel v3.22へ反映して出力します。</p><p class="privacy-note">🔒 端末内処理：入力した測定データは外部サーバーへ送信しません。</p>
-<p><label class="file-label word-file-label">① Wordファイルを選択
-<input id="wordFile" type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"></label></p>
-<textarea id="input" rows="16" placeholder="Wordファイルを選ぶか、測定データをここへ貼り付け"></textarea>
-<section id="missingBox" class="missing-box" hidden>
-  <strong>要修正データ</strong>
-  <div id="missingList"></div>
-</section>
-<p><button id="generate" class="pressable" type="button">② Excelを保存</button></p>
-<section id="installBox" class="install-box">
-  <strong>📱 Android / iPhone にSSR温測を追加</strong>
-  <div class="install-qr-wrap">
-    <img class="install-qr" src="ssr-install-qr.png" alt="SSR温測インストールQR">
-    <p class="install-qr-copy">別のスマホでQRを読み取ると、SSR温測のインストールページが開きます。</p>
-  </div>
-  <p id="installGuide" class="install-guide">お使いの端末に合う手順を選んでください。</p>
-  <div class="install-grid">
-    <div class="install-card" id="androidGuide">
-      <h3>Android</h3>
-      <ol>
-        <li>Chromeでこのページを開く</li>
-        <li>下の「アプリをインストール」を押す</li>
-        <li>ホーム画面の「SSR温測」から起動</li>
-      </ol>
-      <p class="install-note">端末によってはChromeのメニュー内に「アプリをインストール」または「ホーム画面に追加」と表示されます。</p>
-      <p><button id="installApp" class="pressable" type="button" hidden>アプリをインストール</button></p>
+<div class="app-wrap">
+    <div class="toolbar">
+        <div class="title-box">
+            <h1>SSR温測 v1.6</h1>
+            <span class="badge">ひな形レイアウト直接入力版</span>
+        </div>
+        <div class="actions">
+            <label class="btn-action" for="wordFile">📂 Word (.docx) 読込</label>
+            <input type="file" id="wordFile" accept=".docx,.txt">
+            <button type="button" class="btn-clear" id="clearAllBtn">🔄 クリア</button>
+            <button type="button" class="btn-export" id="exportBtnTop">📥 Excelを保存（2シート出力）</button>
+        </div>
     </div>
-    <div class="install-card" id="iosGuide">
-      <h3>iPhone / iPad</h3>
-      <ol>
-        <li>Safariでこのページを開く</li>
-        <li>共有ボタンを押す</li>
-        <li>「ホーム画面に追加」を選ぶ</li>
-        <li>追加後、「SSR温測」アイコンから起動</li>
-      </ol>
-      <p class="install-note">App Storeから入れる方式ではなく、Safariからホーム画面へ追加するWebアプリです。</p>
+
+    <!-- Excelシート最上部：日付・構内温度 -->
+    <div class="sheet-header">
+        <div class="sheet-title">ヒーター温調盤 SSRリレー表面温度記録シート</div>
+        <div class="header-inputs">
+            <div>
+                <label for="dateInput"><strong>日付：</strong></label>
+                <input type="text" id="dateInput" class="date-input">
+            </div>
+            <div class="kounai-group">
+                <span>構内温度：</span>
+                <span>①</span><input type="text" inputmode="decimal" id="kounai1" class="kounai-input" placeholder="—"><span>℃</span>
+                <span>②</span><input type="text" inputmode="decimal" id="kounai2" class="kounai-input" placeholder="—"><span>℃</span>
+                <span>③</span><input type="text" inputmode="decimal" id="kounai3" class="kounai-input" placeholder="—"><span>℃</span>
+            </div>
+        </div>
     </div>
-  </div>
-</section>
-<pre id="result" class="result"></pre>
-<section class="distribution-entry">
-  <button id="distributionToggle" class="distribution-link" type="button" aria-expanded="false" aria-controls="distributionPanel">配布用はこちら</button>
-  <section id="distributionPanel" class="distribution-panel" hidden>
-    <div class="distribution-head">
-      <strong>SSR温測 配布</strong>
-      <button id="distributionClose" class="distribution-close" type="button" aria-label="配布用QRを閉じる">×</button>
+
+    <div class="quick-nav" id="quickNav"></div>
+
+    <!-- Excelひな形と同じ各機台のSSR配置表 -->
+    <div class="sheet-grid" id="sheetGrid"></div>
+
+    <div class="bottom-export-wrap">
+        <button type="button" class="btn-export" id="exportBtnBottom" style="width:100%; padding:14px; font-size:1.05rem;">📥 Excelを保存（配置シート＋縦データ 2シート出力）</button>
     </div>
-    <p class="distribution-status">このQRから配布ページを開き、Android / iPhone を選べます。</p>
-    <img class="distribution-qr" src="android-distribution-qr.png" alt="SSR温測 共通配布QR">
-    <p class="distribution-note">Androidは正式署名版を準備中、iPhone版も配布方法を準備中です。QRは今後も同じものを使います。</p>
-  </section>
-</section>
-</main>
-<script src="template-data.js"></script>
-<script src="app.js"></script>
-<script src="distribution.js"></script>
+
+    <!-- 画面下部：配布用QRコード（Android / iPhone）＆ダウンロード -->
+    <div class="footer-distribute">
+        <div class="footer-title">📱 スマホ共有・第三者配布用QRコード</div>
+        <div class="footer-qr-row">
+            <div class="qr-card">
+                <div class="qr-label">🤖 Android用 QR</div>
+                <div id="qrAndroid"></div>
+            </div>
+            <div class="qr-card">
+                <div class="qr-label">🍎 iPhone (iOS)用 QR</div>
+                <div id="qrIphone"></div>
+            </div>
+            <div class="footer-actions">
+                <button type="button" class="btn-action" id="copyUrlBtn">🔗 アプリのURLをコピー</button>
+                <button type="button" class="btn-action" id="downloadHtmlBtn" style="background:#34a853; color:#fff; border-color:#34a853;">⬇️ このアプリ(HTML)を保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const PUBLIC_APP_URL = "https://shoheikanaya-wq.github.io/ssr-temperature-app-public/";
+
+    function getTodayJP() {
+        const d = new Date();
+        return d.getFullYear() + "年" + (d.getMonth() + 1) + "月" + d.getDate() + "日";
+    }
+    document.getElementById('dateInput').value = getTodayJP();
+
+    // Excelひな形（SSR温測ひな形.xlsx）と完全一致する全13機台の配置定義
+    const PANEL_CONFIG = {
+        'MM18': {
+            colS2_2026: 'B', colS2_hina: 'B', tempUp: 'D2', tempDown: 'F2', headerRow: 2, startCol: 2, labelRows: [3, 5, 7, 9],
+            rows: [
+                { labels: ['２SR11','２SR12'], cells: ['B4','C4'] },
+                { labels: ['２SR21','２SR22','２SR31','２SR32','２SR41','２SR42','２SR51','２SR52','２SR61','２SR62','２SR71','２SR72','２SR81','２SR82'], cells: ['B6','C6','D6','E6','F6','G6','H6','I6','J6','K6','L6','M6','N6','O6'] },
+                { labels: ['２SR91','２SR92','２SR101','２SR102','２SR111','２SR112','２SR121','２SR122','2SR131','2SR132','2SR141','2SR142','2SR151','2SR152'], cells: ['B8','C8','D8','E8','F8','G8','H8','I8','J8','K8','L8','M8','N8','O8'] },
+                { labels: ['2SR161','2SR162','2SR171','2SR172','2SR181','2SR182','2SR191','2SR192','2SR201','2SR202','2SR211','2SR212','2SR221','2SR222'], cells: ['B10','C10','D10','E10','F10','G10','H10','I10','J10','K10','L10','M10','N10','O10'] }
+            ]
+        },
+        'FE01': {
+            colS2_2026: 'C', tempUp: 'D12', tempDown: 'F12', headerRow: 12, startCol: 2, labelRows: [13, 15],
+            rows: [
+                { labels: ['5BSSR','5ASSR','4BSSR','4ASSR','3BSSR','3ASSR','2BSSR','2ASSR','1BSSR','1ASSR'], cells: ['B14','C14','D14','E14','F14','G14','H14','I14','J14','K14'] },
+                { labels: ['9BSSR','9ASSR',null,null,'8BSSR','8ASSR','7BSSR','7ASSR','6BSSR','6ASSR'], cells: ['B16','C16',null,null,'F16','G16','H16','I16','J16','K16'] }
+            ]
+        },
+        'FE04': {
+            colS2_2026: 'D', tempUp: 'D18', tempDown: 'F18', headerRow: 18, startCol: 2, labelRows: [19, 21],
+            rows: [
+                { labels: ['SSR1A','SSR1B','SSR2A','SSR2B','SSR3A','SSR3B','SSR4A','SSR4B','SSR5A','SSR5B'], cells: ['B20','C20','D20','E20','F20','G20','H20','I20','J20','K20'] },
+                { labels: ['SSR6A','SSR6B','SSR7A','SSR7B','SSR8A','SSR8B','SSR1','SSR2','SSR31','SSR32','SSR4','SSR5'], cells: ['B22','C22','D22','E22','F22','G22','H22','I22','J22','K22','L22','M22'] }
+            ]
+        },
+        'FM81': {
+            colS2_2026: 'E', tempUp: 'D24', tempDown: 'F24', headerRow: 24, startCol: 2, labelRows: [25, 27, 29],
+            rows: [
+                { labels: ['1SSR1','1SSR2','2SSR','3SSR','4SSR','5SSR','6SSR'], cells: ['B26','C26','D26','E26','F26','G26','H26'] },
+                { labels: ['7SSR','8SSR','9SSR','10SSR','11SSR','12SSR','13SSR'], cells: ['B28','C28','D28','E28','F28','G28','H28'] },
+                { labels: ['14SSR','15SSR','16SSR1','16SSR2','17SSR','18SSR'], cells: ['B30','C30','D30','E30','F30','G30'] }
+            ]
+        },
+        'FM83-1': {
+            colS2_2026: 'F', tempUp: 'D32', tempDown: 'F32', headerRow: 32, startCol: 2, labelRows: [33, 35],
+            rows: [
+                { labels: ['1SSR','2SSR','3SSR','4SSR','5SSR','6SSR','7SSR','8SSR','9SSR','10SSR','11SSR','12SSR','13SSR','14SSR','15SSR','16SSR','17SSR','18SSR'], cells: ['B34','C34','D34','E34','F34','G34','H34','I34','J34','K34','L34','M34','N34','O34','P34','Q34','R34','S34'] },
+                { labels: ['19SSR','20SSR','21SSR','22SSR','23SSR','24SSR','25SSR','26SSR','27SSR','28SSR','29SSR','30SSR','31SSR','32SSR','33SSR','34SSR','35SSR'], cells: ['B36','C36','D36','E36','F36','G36','H36','I36','J36','K36','L36','M36','N36','O36','P36','Q36','R36'] }
+            ]
+        },
+        'FM83-2': {
+            colS2_2026: 'G', tempUp: 'D38', tempDown: 'F38', headerRow: 38, startCol: 2, labelRows: [39, 41],
+            rows: [
+                { labels: ['401ASSR','401BSSR','402ASSR','402BSSR','403ASSR','403BSSR'], cells: ['B40','C40','D40','E40','F40','G40'] },
+                { labels: ['411ASSR','411BSSR','412ASSR','412BSSR','413ASSR','413BSSR'], cells: ['B42','C42','D42','E42','F42','G42'] }
+            ]
+        },
+        'FM84': {
+            colS2_2026: 'H', tempUp: 'D45', tempDown: 'F45', headerRow: 45, startCol: 2, labelRows: [46, 48, 50],
+            rows: [
+                { labels: ['1SSR','2SSR','3SSR','4SSR','5SSR','6SSR'], cells: ['B47','C47','D47','E47','F47','G47'] },
+                { labels: ['7SSR','8SSR','9SSR','10SSR','11SSR','12SSR','13SSR','14SSR','15SSR','16SSR','17SSR','18SSR','19SSR','20SSR'], cells: ['B49','C49','D49','E49','F49','G49','H49','I49','J49','K49','L49','M49','N49','O49'] },
+                { labels: ['21SSR','22SSR','23SSR','24SSR','51SSR1','51SSR2','52SSR1','52SSR2'], cells: ['B51','C51','D51','E51','F51','G51','H51','I51'] }
+            ]
+        },
+        'FM96': {
+            colS2_2026: 'I', tempUp: 'D54', tempDown: 'F54', headerRow: 54, startCol: 2, labelRows: [55, 57, 59],
+            rows: [
+                { labels: ['1SSR','2SSR','3SSR','4SSR','5SSR','6SSR'], cells: ['B56','C56','D56','E56','F56','G56'] },
+                { labels: ['7SSR','8SSR','9SSR','10SSR','11SSR','12SSR'], cells: ['B58','C58','D58','E58','F58','G58'] },
+                { labels: ['13SSR','14SSR','15SSR','16SSR','17SSR','18SSR'], cells: ['B60','C60','D60','E60','F60','G60'] }
+            ]
+        },
+        'FM97': {
+            colS2_2026: 'J', tempUp: 'M54', tempDown: 'O54', headerRow: 54, startCol: 11, labelRows: [55, 57, 59],
+            rows: [
+                { labels: ['1SSR','2SSR','3SSR','4SSR','5SSR','6SSR','7SSR'], cells: ['K56','L56','M56','N56','O56','P56','Q56'] },
+                { labels: ['8SSR','9SSR','10SSR','11SSR','12SSR','13SSR','14SSR'], cells: ['K58','L58','M58','N58','O58','P58','Q58'] },
+                { labels: ['15SSR','16SSR','17SSR','18SSR'], cells: ['K60','L60','M60','N60'] }
+            ]
+        },
+        'FM19': {
+            colS2_2026: 'K', tempUp: 'D63', tempDown: 'F63', headerRow: 63, startCol: 2, labelRows: [64, 66, 68, 70, 72],
+            rows: [
+                { labels: ['SSR1','SSR2','SSR3','SSR4','SSR5','SSR6'], cells: ['B65','C65','D65','E65','F65','G65'] },
+                { labels: ['SSR7','SSR8','SSR9','SSR10','SSR11','SSR12'], cells: ['B67','C67','D67','E67','F67','G67'] },
+                { labels: ['SSR13','SSR14','SSR15','SSR16','SSR17','SSR18'], cells: ['B69','C69','D69','E69','F69','G69'] },
+                { labels: ['SSRH-1A','SSRH-1B','SSRH-2A','SSRH-2B','SSRH-3A','SSRH-3B'], cells: ['B71','C71','D71','E71','F71','G71'] },
+                { labels: ['SSRH２-1A','SSRH２-1B','SSR2-2A','SSR2-2B','SSR2-3A','SSR2-3B'], cells: ['B73','C73','D73','E73','F73','G73'] }
+            ]
+        },
+        'FM22': {
+            colS2_2026: 'L', tempUp: 'M63', tempDown: 'O63', headerRow: 63, startCol: 11, labelRows: [64, 66, 68],
+            rows: [
+                { labels: ['10SSR1','10SSR2','10SSR3','011SSR1','011SSR2','011SSR3','012SSR1','012SSR2','012SSR3','013SSR1','013SSR2','013SSR3'], cells: ['K65','L65','M65','N65','O65','P65','Q65','R65','S65','T65','U65','V65'] },
+                { labels: ['014SSR1','014SSR2','014SSR3','015SSR1','015SSR2','015SSR3','165SSR1','165SSR2','165SSR3'], cells: ['K67','L67','M67','N67','O67','P67','Q67','R67','S67'] },
+                { labels: ['017SSR1','017SSR2','017SSR3','018SSR1','018SSR2','018SSR3','019SSR1','019SSR2','019SSR3'], cells: ['K69','L69','M69','N69','O69','P69','Q69','R69','S69'] }
+            ]
+        },
+        'FM01': {
+            colS2_2026: 'M', tempUp: 'D76', tempDown: 'F76', headerRow: 76, startCol: 2, labelRows: [77, 79, 81],
+            rows: [
+                { labels: ['1SSR','2SSR','3SSR','4SSR','5SSR','6SSR','7SSR'], cells: ['B78','C78','D78','E78','F78','G78','H78'] },
+                { labels: ['8SSR','9SSR','10SSR','11SSR','12SSR','13SSR','14SSR'], cells: ['B80','C80','D80','E80','F80','G80','H80'] },
+                { labels: ['15SSR','16SSR','17SSR','18SSR','19SSR','20SSR'], cells: ['B82','C82','D82','E82','F82','G82'] }
+            ]
+        },
+        'FM07': {
+            colS2_2026: 'N', tempUp: 'M76', tempDown: 'O76', headerRow: 76, startCol: 11, labelRows: [77, 79, 81],
+            rows: [
+                { labels: ['1SSR','2SSR','3SSR','4SSR','5SSR','6SSR','７-1SSR','７-2SSR','8-1SSR','8-2SSR','9-1SSR','9-2SSR'], cells: ['K78','L78','M78','N78','O78','P78','Q78','R78','S78','T78','U78','V78'] },
+                { labels: ['10-1SSR','10-2SSR','11SSR','12SSR','13SSR','14SSR','15SSR','16SSR','17SSR','18SSR','19SSR','20SSR'], cells: ['K80','L80','M80','N80','O80','P80','Q80','R80','S80','T80','U80','V80'] },
+                { labels: [null,null,null,null,'21SSR','22SSR','23SSR','24SSR','25SSR','26SSR','27SSR','28SSR'], cells: [null,null,null,null,'O82','P82','Q82','R82','S82','T82','U82','V82'] }
+            ]
+        }
+    };
+
+    const LAYOUT_STRUCTURE = [
+        ['MM18'], ['FE01'], ['FE04'], ['FM81'], ['FM83-1'], ['FM83-2'], ['FM84'],
+        ['FM96', 'FM97'], ['FM19', 'FM22'], ['FM01', 'FM07']
+    ];
+
+    function splitContinuousNumbers(str) {
+        let s = String(str)
+            .replace(/[０-９]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0))
+            .replace(/[．。、]/g, '.')
+            .replace(/([0-9]+)人/g, '$1 ');
+        s = s.replace(/(\.\d)(?=\d)/g, '$1 ');
+        const matches = s.match(/\d+(?:\.\d+)?/g);
+        return matches || [];
+    }
+
+    function createPanelCard(pName) {
+        const cfg = PANEL_CONFIG[pName];
+        const card = document.createElement('div');
+        card.className = 'panel-card';
+        card.id = 'panel-' + pName;
+
+        const header = document.createElement('div');
+        header.className = 'panel-header';
+        header.innerHTML =
+            '<span class="panel-name">' + pName + '</span>' +
+            '<span>(盤内温度 上</span>' +
+            '<input type="text" inputmode="decimal" class="temp-input" data-cell="' + cfg.tempUp + '" data-panel="' + pName + '" data-role="tempUp" placeholder="上">' +
+            '<span>℃ 下</span>' +
+            '<input type="text" inputmode="decimal" class="temp-input" data-cell="' + cfg.tempDown + '" data-panel="' + pName + '" data-role="tempDown" placeholder="下">' +
+            '<span>℃）</span>';
+        card.appendChild(header);
+
+        const scrollWrap = document.createElement('div');
+        scrollWrap.className = 'table-scroll';
+
+        cfg.rows.forEach((rowDef, rIdx) => {
+            const table = document.createElement('table');
+            table.className = 'ssr-table';
+            const thead = document.createElement('tr');
+            const tbody = document.createElement('tr');
+
+            rowDef.labels.forEach((lbl, cIdx) => {
+                const cellCoord = rowDef.cells[cIdx];
+                const th = document.createElement('th');
+                const td = document.createElement('td');
+
+                if (lbl === null || cellCoord === null) {
+                    th.className = 'empty-cell';
+                    td.className = 'empty-cell';
+                } else {
+                    th.textContent = lbl;
+                    const inp = document.createElement('input');
+                    inp.type = 'text';
+                    inp.inputMode = 'decimal';
+                    inp.className = 'ssr-input';
+                    inp.dataset.cell = cellCoord;
+                    inp.dataset.panel = pName;
+                    inp.dataset.rowIdx = rIdx;
+                    td.appendChild(inp);
+                }
+                thead.appendChild(th);
+                tbody.appendChild(td);
+            });
+
+            table.appendChild(thead);
+            table.appendChild(tbody);
+            scrollWrap.appendChild(table);
+        });
+
+        card.appendChild(scrollWrap);
+        return card;
+    }
+
+    const sheetGrid = document.getElementById('sheetGrid');
+    const quickNav = document.getElementById('quickNav');
+
+    Object.keys(PANEL_CONFIG).forEach(pName => {
+        const link = document.createElement('a');
+        link.href = '#panel-' + pName;
+        link.textContent = pName;
+        quickNav.appendChild(link);
+    });
+
+    LAYOUT_STRUCTURE.forEach(group => {
+        if (group.length === 1) {
+            sheetGrid.appendChild(createPanelCard(group[0]));
+        } else {
+            const rowWrap = document.createElement('div');
+            rowWrap.className = 'side-by-side';
+            group.forEach(pName => rowWrap.appendChild(createPanelCard(pName)));
+            sheetGrid.appendChild(rowWrap);
+        }
+    });
+
+    function updateInputStyle(inp) {
+        const val = parseFloat(inp.value);
+        inp.classList.remove('filled', 'high-temp');
+        if (!isNaN(val)) {
+            inp.classList.add(val >= 50 ? 'high-temp' : 'filled');
+        }
+    }
+
+    // セルへの連続入力・ペースト時に右隣のセルへ自動振り分け
+    document.addEventListener('input', function(e) {
+        const target = e.target;
+        if (!target.matches('.temp-input, .ssr-input')) return;
+
+        const panelName = target.dataset.panel;
+        const nums = splitContinuousNumbers(target.value);
+
+        if (nums.length >= 2) {
+            const card = document.getElementById('panel-' + panelName);
+            if (target.dataset.role === 'tempUp') {
+                const upInp = card.querySelector('[data-role="tempUp"]');
+                const downInp = card.querySelector('[data-role="tempDown"]');
+                upInp.value = nums[0];
+                downInp.value = nums[1];
+                updateInputStyle(upInp);
+                updateInputStyle(downInp);
+            } else if (target.classList.contains('ssr-input')) {
+                const ssrInputs = Array.from(card.querySelectorAll('.ssr-input'));
+                const startIndex = ssrInputs.indexOf(target);
+                if (startIndex !== -1) {
+                    nums.forEach((n, idx) => {
+                        const dest = ssrInputs[startIndex + idx];
+                        if (dest) {
+                            dest.value = n;
+                            updateInputStyle(dest);
+                        }
+                    });
+                }
+            }
+        } else {
+            updateInputStyle(target);
+        }
+    });
+
+    // Wordファイル (.docx) 読込時に各セルへ自動反映
+    function applyBulkTextToSheet(text) {
+        const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+        let currentPanel = null;
+        const panelTempAssigned = {};
+        const panelRowCursor = {};
+
+        lines.forEach(line => {
+            if (/^\d{4}年\d{1,2}月\d{1,2}日$/.test(line) || /^\d{1,2}月\d{1,2}日$/.test(line)) {
+                document.getElementById('dateInput').value = line;
+                return;
+            }
+            const m1 = line.match(/(?:まるいち|丸1|①)\s*(\d+(?:\.\d+)?)/);
+            const m2 = line.match(/(?:まるに|丸2|②)\s*(\d+(?:\.\d+)?)/);
+            const m3 = line.match(/(?:まるさん|丸3|③)\s*(\d+(?:\.\d+)?)/);
+            if (m1 || m2 || m3 || /^(?:まるいち|まるに|まるさん)$/.test(line)) {
+                if (m1) document.getElementById('kounai1').value = m1[1];
+                if (m2) document.getElementById('kounai2').value = m2[1];
+                if (m3) document.getElementById('kounai3').value = m3[1];
+                return;
+            }
+
+            const norm = line.toUpperCase()
+                .replace(/[Ａ-Ｚ０-９]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0))
+                .replace(/[\s \[\]]+/g, '')
+                .replace(/[ー−―]/g, '-');
+
+            if (PANEL_CONFIG[norm]) {
+                currentPanel = norm;
+                if (panelRowCursor[currentPanel] === undefined) panelRowCursor[currentPanel] = 0;
+                return;
+            }
+
+            if (currentPanel) {
+                const nums = splitContinuousNumbers(line);
+                if (nums.length === 0) return;
+                const card = document.getElementById('panel-' + currentPanel);
+                if (!panelTempAssigned[currentPanel] && nums.length === 2 && panelRowCursor[currentPanel] === 0) {
+                    const upInp = card.querySelector('[data-role="tempUp"]');
+                    const downInp = card.querySelector('[data-role="tempDown"]');
+                    upInp.value = nums[0];
+                    downInp.value = nums[1];
+                    updateInputStyle(upInp);
+                    updateInputStyle(downInp);
+                    panelTempAssigned[currentPanel] = true;
+                } else {
+                    const rIdx = panelRowCursor[currentPanel];
+                    const rowInputs = Array.from(card.querySelectorAll('.ssr-input[data-row-idx="' + rIdx + '"]'));
+                    if (rowInputs.length > 0) {
+                        nums.forEach((n, cIdx) => {
+                            if (cIdx < rowInputs.length) {
+                                rowInputs[cIdx].value = n;
+                                updateInputStyle(rowInputs[cIdx]);
+                            }
+                        });
+                        panelRowCursor[currentPanel] = rIdx + 1;
+                    }
+                }
+            }
+        });
+    }
+
+    document.getElementById('wordFile').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        if (file.name.endsWith('.docx')) {
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                mammoth.extractRawText({ arrayBuffer: evt.target.result }).then(res => applyBulkTextToSheet(res.value));
+            };
+            reader.readAsArrayBuffer(file);
+        } else {
+            const reader = new FileReader();
+            reader.onload = function(evt) { applyBulkTextToSheet(evt.target.result); };
+            reader.readAsText(file);
+        }
+        e.target.value = '';
+    });
+
+    document.getElementById('clearAllBtn').addEventListener('click', () => {
+        if (!confirm('入力した測定値をすべてクリアしますか？')) return;
+        document.getElementById('kounai1').value = '';
+        document.getElementById('kounai2').value = '';
+        document.getElementById('kounai3').value = '';
+        document.querySelectorAll('.temp-input, .ssr-input').forEach(inp => {
+            inp.value = '';
+            updateInputStyle(inp);
+        });
+    });
+
+    // Excel出力処理（2シート：リレー配置と測定温度記入シート ＆ 縦データ）
+    async function exportExcel() {
+        const wb = new ExcelJS.Workbook();
+        const ws1 = wb.addWorksheet('リレー配置と測定温度記入シート');
+        const ws2 = wb.addWorksheet('縦データ');
+
+        const dateStr = document.getElementById('dateInput').value.trim() || getTodayJP();
+        const k1 = document.getElementById('kounai1').value.trim() || '—';
+        const k2 = document.getElementById('kounai2').value.trim() || '—';
+        const k3 = document.getElementById('kounai3').value.trim() || '—';
+
+        ws1.getCell('B1').value = 'ヒーター温調盤 SSRリレー表面温度記録シート';
+        ws1.getCell('N1').value = '日付';
+        ws1.getCell('O1').value = dateStr;
+        ws1.getCell('R1').value = '構内温度';
+        ws1.getCell('S1').value = '①' + k1 + (k1 !== '—' ? '℃' : '') + ' ②' + k2 + (k2 !== '—' ? '℃' : '') + ' ③' + k3 + (k3 !== '—' ? '℃' : '');
+
+        const thinBorder = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+
+        ws2.getCell('A1').value = '項目';
+        ws2.getCell('A2').value = '測定日';
+        ws2.getCell('A3').value = '盤内温度';
+        ws2.getCell('A5').value = '測定温度';
+        for (let i = 1; i <= 44; i++) {
+            ws2.getCell('A' + (i + 5)).value = 'SSR' + String(i).padStart(2, '0');
+        }
+
+        const shortDateMatch = dateStr.match(/\d{1,2}月\d{1,2}日/);
+        const shortDate = shortDateMatch ? shortDateMatch[0] : dateStr;
+
+        Object.keys(PANEL_CONFIG).forEach(pName => {
+            const cfg = PANEL_CONFIG[pName];
+            const card = document.getElementById('panel-' + pName);
+            const hRow = cfg.headerRow;
+            const sc = cfg.startCol;
+
+            ws1.getCell(hRow, sc).value = pName;
+            ws1.getCell(hRow, sc + 1).value = '(盤内温度 上';
+            ws1.getCell(hRow, sc + 3).value = '℃ 下';
+            ws1.getCell(hRow, sc + 5).value = '℃）';
+
+            const upVal = parseFloat(card.querySelector('[data-role="tempUp"]').value);
+            const downVal = parseFloat(card.querySelector('[data-role="tempDown"]').value);
+            if (!isNaN(upVal)) ws1.getCell(cfg.tempUp).value = upVal;
+            if (!isNaN(downVal)) ws1.getCell(cfg.tempDown).value = downVal;
+
+            ws2.getCell(cfg.colS2_2026 + '1').value = pName;
+            ws2.getCell(cfg.colS2_2026 + '2').value = shortDate;
+            if (!isNaN(upVal)) ws2.getCell(cfg.colS2_2026 + '3').value = upVal;
+
+            cfg.rows.forEach((rowDef, rIdx) => {
+                const labelRow = cfg.labelRows[rIdx];
+                const valRow = labelRow + 1;
+                rowDef.labels.forEach((lbl, cIdx) => {
+                    if (lbl !== null) {
+                        const c1 = ws1.getCell(labelRow, sc + cIdx);
+                        const c2 = ws1.getCell(valRow, sc + cIdx);
+                        c1.value = lbl;
+                        c1.border = thinBorder;
+                        c2.border = thinBorder;
+                    }
+                });
+            });
+
+            const ssrInputs = Array.from(card.querySelectorAll('.ssr-input'));
+            ssrInputs.forEach((inp, idx) => {
+                const num = parseFloat(inp.value);
+                if (!isNaN(num)) {
+                    ws1.getCell(inp.dataset.cell).value = num;
+                    ws2.getCell(cfg.colS2_2026 + (6 + idx)).value = num;
+                }
+            });
+        });
+
+        let fileNameDate = dateStr.replace(/(\d{4})年(\d{1,2})月(\d{1,2})日/, (_, y, m, d) => {
+            return y + String(m).padStart(2, '0') + String(d).padStart(2, '0');
+        }).replace(/[^\d]/g, '') || 'SSR温度測定';
+
+        const outBuffer = await wb.xlsx.writeBuffer();
+        const blob = new Blob([outBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileNameDate + '.xlsx';
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+
+    document.getElementById('exportBtnTop').addEventListener('click', exportExcel);
+    document.getElementById('exportBtnBottom').addEventListener('click', exportExcel);
+
+    // 画面下部のQRコード生成（Android用 / iPhone用）＆HTML保存ボタン
+    const targetUrl = window.location.href.startsWith('http') ? window.location.href : PUBLIC_APP_URL;
+    ['qrAndroid', 'qrIphone'].forEach(id => {
+        const el = document.getElementById(id);
+        if (typeof QRCode !== 'undefined') {
+            new QRCode(el, { text: targetUrl, width: 115, height: 115 });
+        }
+    });
+
+    document.getElementById('copyUrlBtn').addEventListener('click', () => {
+        navigator.clipboard.writeText(targetUrl).then(() => alert('URLをコピーしました！'));
+    });
+
+    document.getElementById('downloadHtmlBtn').addEventListener('click', () => {
+        const htmlContent = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+        const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'index.html';
+        a.click();
+        URL.revokeObjectURL(url);
+    });
+</script>
 </body>
 </html>
