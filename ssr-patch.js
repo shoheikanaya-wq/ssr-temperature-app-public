@@ -12,8 +12,6 @@ Claude
 
 
 
-
-
 Ssr patch · JS
 /* ssr-patch.js : SSR温測 追加機能
  *  1. 上から下へのスワイプで画面が再読み込みされるのを止める
@@ -44,6 +42,20 @@ Ssr patch · JS
   st.textContent = 'html,body{overscroll-behavior-y:none;}';
   document.head.appendChild(st);
  
+  // 指の下にある要素の親をたどり、「縦にスクロールでき、まだ上に戻れる」ものがあれば true
+  function innerCanScrollUp(el) {
+    while (el && el !== document.body && el !== document.documentElement) {
+      if (el.nodeType === 1) {
+        var oy = window.getComputedStyle(el).overflowY;
+        if ((oy === 'auto' || oy === 'scroll') && el.scrollHeight > el.clientHeight && el.scrollTop > 0) {
+          return true;
+        }
+      }
+      el = el.parentNode;
+    }
+    return false;
+  }
+ 
   var sx = 0;
   var sy = 0;
   document.addEventListener(
@@ -64,7 +76,8 @@ Ssr patch · JS
       var dy = e.touches[0].clientY - sy;
       var atTop = (window.pageYOffset || document.documentElement.scrollTop || 0) <= 0;
       // 画面の一番上で、縦方向に下へ引っ張られたときだけ止める(横スクロールは邪魔しない)
-      if (atTop && dy > 0 && Math.abs(dy) > Math.abs(dx)) {
+      // ただし、指が置かれた場所が「中でスクロールできる表示」(出力画面など)で、上にまだ戻れる場合は止めない
+      if (atTop && dy > 0 && Math.abs(dy) > Math.abs(dx) && !innerCanScrollUp(e.target)) {
         if (e.cancelable) e.preventDefault();
       }
     },
