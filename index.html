@@ -7,7 +7,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="theme-color" content="#1a73e8">
    <link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="icon-180.png"><script src="ssr-patch.js" defer></script>
-    <title>SSR温測 v1.6 ひな形レイアウト版</title>
+    <title>SSR温測</title>
     <script src="https://cdn.jsdelivr.net/npm/exceljs@4.3.0/dist/exceljs.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -78,14 +78,13 @@
 <div class="app-wrap">
     <div class="toolbar">
         <div class="title-box">
-            <h1>SSR温測 v1.6</h1>
+            <h1>SSR温測</h1>
             <span class="badge">ひな形レイアウト直接入力版</span>
         </div>
         <div class="actions">
             <label class="btn-action" for="wordFile">📂 Word (.docx) 読込</label>
             <input type="file" id="wordFile" accept=".docx,.txt">
             <button type="button" class="btn-clear" id="clearAllBtn">🔄 クリア</button>
-            <button type="button" class="btn-export" id="exportBtnTop">📥 Excelを保存（2シート出力）</button>
         </div>
     </div>
 
@@ -566,7 +565,6 @@
         URL.revokeObjectURL(url);
     }
 
-    document.getElementById('exportBtnTop').addEventListener('click', exportExcel);
     document.getElementById('exportBtnBottom').addEventListener('click', exportExcel);
 
     // 画面下部のQRコード生成（Android用 / iPhone用）＆HTML保存ボタン
