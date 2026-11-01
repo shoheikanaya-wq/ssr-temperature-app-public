@@ -12,6 +12,10 @@ Claude
 
 
 
+
+
+
+
 Ssr patch · JS
 /* ssr-patch.js : SSR温測 追加機能
  *  1. 上から下へのスワイプで画面が再読み込みされるのを止める
@@ -94,6 +98,26 @@ Ssr patch · JS
   }
  
   var lastJson = '';
+  var VERSION = 'v4';
+  var badgeEl = null;
+  function badge(text) {
+    try {
+      if (!badgeEl) {
+        badgeEl = document.createElement('div');
+        badgeEl.id = 'ssrPatchBadge';
+        badgeEl.style.cssText =
+          'position:fixed;left:6px;bottom:6px;z-index:9990;padding:2px 8px;border-radius:10px;' +
+          'background:rgba(255,255,255,.88);border:1px solid #c8d0dc;font-size:11px;color:#444;pointer-events:none;';
+        document.body.appendChild(badgeEl);
+      }
+      badgeEl.textContent = text;
+    } catch (e) {}
+  }
+  function hhmm() {
+    var d = new Date();
+    return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+  }
+ 
   function save() {
     try {
       var dateEl = document.getElementById('dateInput');
@@ -101,17 +125,30 @@ Ssr patch · JS
       fields().forEach(function (inp) {
         if (inp.value !== '') data.inputs[keyOf(inp)] = inp.value;
       });
+      // 入力が1つもないときは、保存済みの内容を消さない(消すのは「クリア」を押したときだけ)
+      if (Object.keys(data.inputs).length === 0) return;
       var json = JSON.stringify(data);
       if (json === lastJson) return;
+      localStorage.setItem(STORE_KEY, json);
       lastJson = json;
-      if (Object.keys(data.inputs).length === 0) {
-        localStorage.removeItem(STORE_KEY);
-      } else {
-        localStorage.setItem(STORE_KEY, json);
-      }
+      badge('🛠' + VERSION + ' 💾 保存済み ' + hhmm());
     } catch (e) {
-      /* 保存できない環境でも、アプリは普通に動かす */
+      badge('🛠' + VERSION + ' ⚠ 保存できません');
     }
+  }
+ 
+  // 「クリア」を押して、本当に全部が空になったときだけ、保存内容も消す
+  function afterClear() {
+    var any = false;
+    fields().forEach(function (inp) {
+      if (inp.value !== '') any = true;
+    });
+    if (any) return; // 確認で「いいえ」を選んだ場合
+    try {
+      localStorage.removeItem(STORE_KEY);
+    } catch (e) {}
+    lastJson = '';
+    badge('🛠' + VERSION + ' 保存内容を消しました');
   }
  
   function notice(msg) {
@@ -156,6 +193,7 @@ Ssr patch · JS
         if (d) d.value = data.date;
       }
       lastJson = raw;
+      badge('🛠' + VERSION + ' ♻ ' + count + '欄を復元');
       if (count > 0) {
         notice(
           '前回の入力' +
@@ -325,6 +363,7 @@ Ssr patch · JS
  
   /* ===== 起動処理 ===== */
   function init() {
+    badge('🛠' + VERSION + ' 動作中');
     restore();
     setupEnterNav();
  
@@ -344,7 +383,7 @@ Ssr patch · JS
     var clearBtn = document.getElementById('clearAllBtn');
     if (clearBtn) {
       clearBtn.addEventListener('click', function () {
-        setTimeout(save, 200);
+        setTimeout(afterClear, 300);
       });
     }
  
