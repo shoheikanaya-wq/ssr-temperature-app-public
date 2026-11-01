@@ -1,22 +1,3 @@
-Claude
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-Ssr patch · JS
 /* ssr-patch.js : SSR温測 追加機能
  *  1. 上から下へのスワイプで画面が再読み込みされるのを止める
  *  2. 入力した値を自動で保存し、再読み込みしても復元する
@@ -25,12 +6,12 @@ Ssr patch · JS
  */
 (function () {
   'use strict';
- 
+
   /* ★設定 ------------------------------------------------ */
   var HIDE_DISTRIBUTE_IN_APP = true; // true: アプリとして開いたとき配布用QR欄を隠す / false: 表示する
   var STORE_KEY = 'ssr_temp_autosave_v1';
   /* ------------------------------------------------------ */
- 
+
   var ua = navigator.userAgent || '';
   var isStandalone =
     (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
@@ -40,12 +21,12 @@ Ssr patch · JS
     (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   var isAndroid = /Android/.test(ua);
   var inAppBrowser = /Line\/|FBAN|FBAV|Instagram|MicroMessenger|Twitter/i.test(ua);
- 
+
   /* ===== 1. 引っ張って更新(上から下へのスワイプ)を止める ===== */
   var st = document.createElement('style');
   st.textContent = 'html,body{overscroll-behavior-y:none;}';
   document.head.appendChild(st);
- 
+
   // 指の下にある要素の親をたどり、「縦にスクロールでき、まだ上に戻れる」ものがあれば true
   function innerCanScrollUp(el) {
     while (el && el !== document.body && el !== document.documentElement) {
@@ -59,7 +40,7 @@ Ssr patch · JS
     }
     return false;
   }
- 
+
   var sx = 0;
   var sy = 0;
   document.addEventListener(
@@ -87,7 +68,7 @@ Ssr patch · JS
     },
     { passive: false }
   );
- 
+
   /* ===== 2. 入力の自動保存と復元 ===== */
   function fields() {
     return document.querySelectorAll('.temp-input, .ssr-input, .kounai-input');
@@ -96,7 +77,7 @@ Ssr patch · JS
     if (inp.id) return 'id:' + inp.id;
     return (inp.dataset.panel || '') + '|' + (inp.dataset.cell || '') + '|' + (inp.dataset.role || '');
   }
- 
+
   var lastJson = '';
   var VERSION = 'v4';
   var badgeEl = null;
@@ -117,7 +98,7 @@ Ssr patch · JS
     var d = new Date();
     return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
   }
- 
+
   function save() {
     try {
       var dateEl = document.getElementById('dateInput');
@@ -136,7 +117,7 @@ Ssr patch · JS
       badge('🛠' + VERSION + ' ⚠ 保存できません');
     }
   }
- 
+
   // 「クリア」を押して、本当に全部が空になったときだけ、保存内容も消す
   function afterClear() {
     var any = false;
@@ -150,7 +131,7 @@ Ssr patch · JS
     lastJson = '';
     badge('🛠' + VERSION + ' 保存内容を消しました');
   }
- 
+
   function notice(msg) {
     var n = document.createElement('div');
     n.style.cssText =
@@ -173,7 +154,7 @@ Ssr patch · JS
       if (n.parentNode) n.parentNode.removeChild(n);
     }, 12000);
   }
- 
+
   function restore() {
     try {
       var raw = localStorage.getItem(STORE_KEY);
@@ -205,17 +186,17 @@ Ssr patch · JS
       /* 復元できなくても、アプリは普通に動かす */
     }
   }
- 
+
   /* ===== 3. アプリとして追加する案内 ===== */
   var deferredPrompt = null;
   var barEl = null;
- 
+
   function removeBar() {
     if (barEl && barEl.parentNode) barEl.parentNode.removeChild(barEl);
     barEl = null;
     document.body.style.paddingBottom = '';
   }
- 
+
   function renderBar() {
     if (isStandalone) return;
     try {
@@ -223,7 +204,7 @@ Ssr patch · JS
     } catch (e) {}
     var message = '';
     var showButton = false;
- 
+
     if (inAppBrowser) {
       message =
         '⚠ このアプリ内のブラウザでは、ホーム画面に追加できません。右上または右下の「…」から' +
@@ -244,7 +225,7 @@ Ssr patch · JS
     } else {
       return; // パソコンでは案内を出さない
     }
- 
+
     removeBar();
     barEl = document.createElement('div');
     barEl.style.cssText =
@@ -254,7 +235,7 @@ Ssr patch · JS
     var s = document.createElement('span');
     s.textContent = message;
     barEl.appendChild(s);
- 
+
     var right = document.createElement('span');
     right.style.cssText = 'display:flex;gap:6px;align-items:center;flex:0 0 auto;';
     if (showButton) {
@@ -288,24 +269,24 @@ Ssr patch · JS
     document.body.appendChild(barEl);
     document.body.style.paddingBottom = '90px'; // 案内バーで画面の下が隠れないように
   }
- 
+
   window.addEventListener('beforeinstallprompt', function (e) {
     e.preventDefault();
     deferredPrompt = e;
     renderBar();
   });
   window.addEventListener('appinstalled', removeBar);
- 
+
   /* ===== 4. テンキーの「Enter(次へ)」で次の欄へ進む ===== */
   var FIELD_SELECTOR = '.kounai-input, .temp-input, .ssr-input';
- 
+
   function chain() {
     // 画面の上から下、左から右の順(構内温度 → 盤内温度の上・下 → SSRの各欄 → 次の行 → 次の盤)
     return Array.prototype.slice.call(document.querySelectorAll(FIELD_SELECTOR)).filter(function (el) {
       return !el.disabled && el.offsetParent !== null;
     });
   }
- 
+
   function selectAll(el) {
     try {
       el.setSelectionRange(0, el.value.length);
@@ -315,7 +296,7 @@ Ssr patch · JS
       } catch (e2) {}
     }
   }
- 
+
   function goNext(from) {
     var list = chain();
     var i = list.indexOf(from);
@@ -333,14 +314,14 @@ Ssr patch · JS
       } catch (e) {}
     }, 50);
   }
- 
+
   function setupEnterNav() {
     // テンキーを出し、キーボードのEnterキーを「次へ」の表示にする
     document.querySelectorAll(FIELD_SELECTOR).forEach(function (el) {
       el.setAttribute('inputmode', 'decimal');
       el.setAttribute('enterkeyhint', 'next');
     });
- 
+
     document.addEventListener('keydown', function (e) {
       var t = e.target;
       if (!t || !t.matches || !t.matches(FIELD_SELECTOR)) return;
@@ -349,7 +330,7 @@ Ssr patch · JS
         goNext(t);
       }
     });
- 
+
     // 欄をタップしたら中身を全選択する(打った数字で上書きできる)。打ち忘れの行は、その行の左端をタップすれば続けて入力できる
     document.addEventListener('focusin', function (e) {
       var t = e.target;
@@ -360,13 +341,13 @@ Ssr patch · JS
       }
     });
   }
- 
+
   /* ===== 起動処理 ===== */
   function init() {
     badge('🛠' + VERSION + ' 動作中');
     restore();
     setupEnterNav();
- 
+
     // 自動保存(入力時・一定間隔・画面を離れるとき)
     var timer = null;
     document.addEventListener('input', function () {
@@ -378,7 +359,7 @@ Ssr patch · JS
       if (document.visibilityState === 'hidden') save();
     });
     window.addEventListener('pagehide', save);
- 
+
     // 「クリア」ボタンのあと、保存内容も空にする(確認で「いいえ」なら変化なし)
     var clearBtn = document.getElementById('clearAllBtn');
     if (clearBtn) {
@@ -386,26 +367,24 @@ Ssr patch · JS
         setTimeout(afterClear, 300);
       });
     }
- 
+
     // アプリとして開いたときは、配布用QR欄を隠す
     if (isStandalone && HIDE_DISTRIBUTE_IN_APP) {
       var f = document.querySelector('.footer-distribute');
       if (f) f.style.display = 'none';
     }
- 
+
     renderBar();
- 
+
     // アプリとして追加できるようにするための裏方(常に最新の画面を取りに行き、通信できないときだけ保存分を使う)
     if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
       navigator.serviceWorker.register('ssr-sw.js').catch(function () {});
     }
   }
- 
+
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
   } else {
     init();
   }
 })();
- 
-Claude が応答を完了しました
