@@ -8,7 +8,7 @@
   'use strict';
 
   /* ★設定 ------------------------------------------------ */
-  var HIDE_DISTRIBUTE_IN_APP = true; // true: アプリとして開いたとき配布用QR欄を隠す / false: 表示する
+  var HIDE_DISTRIBUTE_IN_APP = false; // true: アプリとして開いたとき配布用QR欄を隠す / false: 表示する
   var STORE_KEY = 'ssr_temp_autosave_v1';
   /* ------------------------------------------------------ */
 
